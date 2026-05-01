@@ -1,5 +1,5 @@
 [workspace]
-members = ["fase-api"]
+members = ["fase-api", "fase-cli"]
 resolver = "3"
 
 [workspace.package]
@@ -8,6 +8,7 @@ license = "GPL-3.0-only"
 
 [workspace.dependencies]
 fase-api = { path = "./fase-api" }
+fase-cli = { path = "./fase-cli" }
 
 bytes = { version = "1" }
 cel = { version = "0.13" }

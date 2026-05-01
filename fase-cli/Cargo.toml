@@ -1,0 +1,11 @@
+[package]
+name = "fase-cli"
+version = "0.1.0"
+description = "package builder and manager"
+edition = { workspace = true }
+license = { workspace = true }
+
+[dependencies]
+clap = { workspace = true }
+compio = { workspace = true }
+fase-api = { workspace = true }
