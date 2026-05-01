@@ -5,8 +5,9 @@ use serde::{Deserializer, Serializer};
 
 use std::sync::LazyLock;
 
-static DNS_NAME: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$").unwrap());
+static DNS_NAME: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*$").unwrap()
+});
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Var(Box<str>);

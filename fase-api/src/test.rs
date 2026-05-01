@@ -9,7 +9,7 @@ fn kustomize() {
 
 #[test]
 fn package() {
-    let package = "apiVersion: v1alpha1\nkind: Package\nlabels:\n  foo: bar";
+    let package = "apiVersion: v1alpha1\nkind: Package\nlabels:\n  version: 0.1.0\n  rev: '1'";
     let package: Resource = serde_yml::from_str(package).unwrap();
     assert!(matches!(package, Resource::Package(_)));
 }
