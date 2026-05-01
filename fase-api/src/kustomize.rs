@@ -8,6 +8,5 @@ pub struct Kustomize {
 }
 
 impl AnyResource for Kustomize {
-    const API_VERSION: &'static str = "v1alpha1";
     const KIND: &'static str = "Kustomize";
 }
