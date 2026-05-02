@@ -2,7 +2,7 @@ use super::*;
 
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Kustomize {
     pub resources: Vec<PathBuf>,
     #[serde(default)]

@@ -10,7 +10,7 @@ mod var;
 #[cfg(test)]
 mod test;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, ser::SerializeMap};
 
 use std::collections::BTreeMap;
 
@@ -82,6 +82,42 @@ impl<'de> serde::Deserialize<'de> for Resource {
             <Kustomize>::deserialize(value)
                 .map(Resource::Kustomize)
                 .map_err(<D::Error as serde::de::Error>::custom)
+        }
+    }
+}
+
+fn serialize_with_header<R, S>(resource: &R, serializer: S) -> Result<S::Ok, S::Error>
+where
+    R: AnyResource + Serialize,
+    S: serde::Serializer,
+{
+    let value = serde_value::to_value(resource).map_err(serde::ser::Error::custom)?;
+
+    let serde_value::Value::Map(fields) = value else {
+        return Err(serde::ser::Error::custom(
+            "resource must serialize as a map",
+        ));
+    };
+    let mut state = serializer.serialize_map(Some(fields.len() + 2))?;
+    state.serialize_entry("apiVersion", R::API_VERSION)?;
+    state.serialize_entry("kind", R::KIND)?;
+    for (key, value) in fields {
+        state.serialize_entry(&key, &value)?;
+    }
+    state.end()
+}
+
+impl Serialize for Resource {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Resource::Package(resource) => serialize_with_header(resource, serializer),
+            Resource::Source(resource) => serialize_with_header(resource, serializer),
+            Resource::Kustomize(resource) => serialize_with_header(resource, serializer),
+            Resource::Install(resource) => serialize_with_header(resource, serializer),
+            Resource::Build(resource) => serialize_with_header(resource, serializer),
         }
     }
 }

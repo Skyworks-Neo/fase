@@ -24,6 +24,9 @@ fn package() {
     let package = header::<Package>("labels:\n  version: 0.1.0\n  rev: '1'");
     let package: Resource = serde_yml::from_str(&package).unwrap();
     assert!(matches!(package, Resource::Package(_)));
+    let package = serde_yml::to_string(&package).unwrap();
+    assert!(package.contains(&format!("apiVersion: {}\n", Package::API_VERSION)));
+    assert!(package.contains(&format!("kind: {}\n", Package::KIND)));
 }
 
 #[test]

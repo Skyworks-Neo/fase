@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Install {
     /// Label selectors that candidate packages must match.
     pub must: Vec<LabelMap>,
