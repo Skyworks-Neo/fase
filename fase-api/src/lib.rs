@@ -10,7 +10,7 @@ mod var;
 #[cfg(test)]
 mod test;
 
-use serde::{Deserialize, Serialize, ser::SerializeMap};
+use serde::{Deserialize, Serialize};
 
 use std::collections::BTreeMap;
 
@@ -86,25 +86,26 @@ impl<'de> serde::Deserialize<'de> for Resource {
     }
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ResourceEnvelope<'a, T: ?Sized> {
+    api_version: &'static str,
+    kind: &'static str,
+    #[serde(flatten)]
+    body: &'a T,
+}
+
 fn serialize_with_header<R, S>(resource: &R, serializer: S) -> Result<S::Ok, S::Error>
 where
     R: AnyResource + Serialize,
     S: serde::Serializer,
 {
-    let value = serde_value::to_value(resource).map_err(serde::ser::Error::custom)?;
-
-    let serde_value::Value::Map(fields) = value else {
-        return Err(serde::ser::Error::custom(
-            "resource must serialize as a map",
-        ));
-    };
-    let mut state = serializer.serialize_map(Some(fields.len() + 2))?;
-    state.serialize_entry("apiVersion", R::API_VERSION)?;
-    state.serialize_entry("kind", R::KIND)?;
-    for (key, value) in fields {
-        state.serialize_entry(&key, &value)?;
+    ResourceEnvelope {
+        api_version: R::API_VERSION,
+        kind: R::KIND,
+        body: resource,
     }
-    state.end()
+    .serialize(serializer)
 }
 
 impl Serialize for Resource {
