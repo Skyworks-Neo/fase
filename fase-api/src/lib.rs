@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+mod act;
 mod build;
 mod install;
 mod kustomize;
@@ -13,6 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use std::collections::BTreeMap;
 
+pub use act::Act;
 pub use build::Build;
 pub use install::Install;
 pub use kustomize::Kustomize;
