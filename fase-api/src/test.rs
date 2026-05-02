@@ -42,10 +42,3 @@ fn install() {
     let install: Resource = serde_yml::from_str(&install).unwrap();
     assert!(matches!(install, Resource::Install(_)));
 }
-
-#[test]
-fn source() {
-    let source = header::<Source>("labels:\n  fooname: bar");
-    let source: Resource = serde_yml::from_str(&source).unwrap();
-    assert!(matches!(source, Resource::Source(_)));
-}

@@ -4,7 +4,6 @@ mod build;
 mod install;
 mod kustomize;
 mod package;
-mod source;
 mod var;
 
 #[cfg(test)]
@@ -18,7 +17,6 @@ pub use build::Build;
 pub use install::Install;
 pub use kustomize::Kustomize;
 pub use package::Package;
-pub use source::Source;
 pub use var::{Var, VarError};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -35,7 +33,6 @@ trait AnyResource {
 #[derive(Debug, Clone)]
 pub enum Resource {
     Package(Package),
-    Source(Source),
     Kustomize(Kustomize),
     Install(Install),
     Build(Build),
@@ -59,9 +56,6 @@ impl<'de> serde::Deserialize<'de> for Resource {
             match (header.kind.as_str(), header.api_version.as_str()) {
                 (Package::KIND, Package::API_VERSION) => <Package>::deserialize(value)
                     .map(Resource::Package)
-                    .map_err(<D::Error as serde::de::Error>::custom),
-                (Source::KIND, Source::API_VERSION) => <Source>::deserialize(value)
-                    .map(Resource::Source)
                     .map_err(<D::Error as serde::de::Error>::custom),
                 (Install::KIND, Install::API_VERSION) => <Install>::deserialize(value)
                     .map(Resource::Install)
@@ -115,7 +109,6 @@ impl Serialize for Resource {
     {
         match self {
             Resource::Package(resource) => serialize_with_header(resource, serializer),
-            Resource::Source(resource) => serialize_with_header(resource, serializer),
             Resource::Kustomize(resource) => serialize_with_header(resource, serializer),
             Resource::Install(resource) => serialize_with_header(resource, serializer),
             Resource::Build(resource) => serialize_with_header(resource, serializer),
