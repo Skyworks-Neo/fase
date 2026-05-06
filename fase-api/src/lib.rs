@@ -16,7 +16,7 @@ pub use url::Url;
 
 use std::collections::BTreeMap;
 
-pub use act::{Act, Matrix};
+pub use act::{Act, ActRef, Bindings, Expr, ExprError, Matrix, Step};
 pub use build::Build;
 pub use install::Install;
 pub use kustomize::Kustomize;
@@ -36,6 +36,7 @@ trait AnyResource {
 
 #[derive(Debug, Clone)]
 pub enum Resource {
+    Act(Act),
     Package(Package),
     Kustomize(Kustomize),
     Install(Install),
@@ -58,6 +59,9 @@ impl<'de> serde::Deserialize<'de> for Resource {
             .map_err(<D::Error as serde::de::Error>::custom)
         {
             match (header.kind.as_str(), header.api_version.as_str()) {
+                (Act::KIND, Act::API_VERSION) => <Act>::deserialize(value)
+                    .map(Resource::Act)
+                    .map_err(<D::Error as serde::de::Error>::custom),
                 (Package::KIND, Package::API_VERSION) => <Package>::deserialize(value)
                     .map(Resource::Package)
                     .map_err(<D::Error as serde::de::Error>::custom),
@@ -112,6 +116,7 @@ impl Serialize for Resource {
         S: serde::Serializer,
     {
         match self {
+            Resource::Act(resource) => serialize_with_header(resource, serializer),
             Resource::Package(resource) => serialize_with_header(resource, serializer),
             Resource::Kustomize(resource) => serialize_with_header(resource, serializer),
             Resource::Install(resource) => serialize_with_header(resource, serializer),

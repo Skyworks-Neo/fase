@@ -3,8 +3,13 @@ kind: Build
 labels:
   fooname: bar
 steps:
-  - inputs:
-      - typ: http
-        url: https://github.com
-    map:
-      typ: zstd
+  - id: fetch
+    act:
+      name: fetch-http
+    with:
+      url: https://github.com
+  - id: archive
+    needs:
+      - fetch
+    act:
+      name: archive-zstd

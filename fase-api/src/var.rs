@@ -20,6 +20,13 @@ pub enum VarError {
 }
 
 impl Var {
+    pub fn new<T>(value: T) -> Result<Self, VarError>
+    where
+        T: Into<Box<str>>,
+    {
+        Self::validate(value.into())
+    }
+
     fn validate(value: Box<str>) -> Result<Self, VarError> {
         if value.is_empty() {
             return Err(VarError::Empty);
@@ -56,5 +63,11 @@ impl std::fmt::Display for VarError {
             VarError::Empty => write!(f, "empty"),
             VarError::Format { val } => write!(f, "{val} is not a valid value"),
         }
+    }
+}
+
+impl std::fmt::Display for Var {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
     }
 }
