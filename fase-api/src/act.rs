@@ -14,8 +14,29 @@ pub struct Act {
     pub outputs: Vec<Output>,
 }
 
-impl AnyResource for Act {
+impl ResourceKind for Act {
     const KIND: &'static str = "Act";
+}
+
+impl HashContent for Act {
+    fn hash_content(&self, state: &mut sha2::Sha256) {
+        hash_field(state, "labels");
+        self.labels.hash_content(state);
+        hash_field(state, "inputs");
+        hash_len(state, self.inputs.len());
+        for input in &self.inputs {
+            input.hash_content(state);
+        }
+        hash_field(state, "map");
+        self.map.hash_content(state);
+        hash_field(state, "matrix");
+        self.matrix.hash_content(state);
+        hash_field(state, "outputs");
+        hash_len(state, self.outputs.len());
+        for output in &self.outputs {
+            output.hash_content(state);
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,9 +49,31 @@ pub struct Step {
     pub needs: Vec<Var>,
 }
 
+impl HashContent for Step {
+    fn hash_content(&self, state: &mut sha2::Sha256) {
+        hash_field(state, "id");
+        self.id.hash_content(state);
+        hash_field(state, "act");
+        self.act.hash_content(state);
+        hash_field(state, "with");
+        self.with.hash_content(state);
+        hash_field(state, "needs");
+        hash_len(state, self.needs.len());
+        for need in &self.needs {
+            need.hash_content(state);
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ActRef(pub LabelMap);
+
+impl HashContent for ActRef {
+    fn hash_content(&self, state: &mut sha2::Sha256) {
+        self.0.hash_content(state);
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Expr(Box<str>);
@@ -98,11 +141,29 @@ impl std::fmt::Display for ExprError {
 
 impl std::error::Error for ExprError {}
 
+impl HashContent for Expr {
+    fn hash_content(&self, state: &mut sha2::Sha256) {
+        hash_str(state, &self.0);
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "typ")]
 pub enum Input {
     Http { url: Expr },
+}
+
+impl HashContent for Input {
+    fn hash_content(&self, state: &mut sha2::Sha256) {
+        match self {
+            Input::Http { url } => {
+                hash_str(state, "http");
+                hash_field(state, "url");
+                url.hash_content(state);
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,7 +178,49 @@ pub enum Map {
     Zstd,
 }
 
+impl HashContent for Map {
+    fn hash_content(&self, state: &mut sha2::Sha256) {
+        hash_str(
+            state,
+            match self {
+                Map::Identity => "identity",
+                Map::Run => "run",
+                Map::Zstd => "zstd",
+            },
+        );
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "typ")]
 pub enum Output {}
+
+impl HashContent for Output {
+    fn hash_content(&self, _state: &mut sha2::Sha256) {
+        match *self {}
+    }
+}
+
+impl HashContent for Matrix {
+    fn hash_content(&self, state: &mut sha2::Sha256) {
+        hash_len(state, self.len());
+        for (key, values) in self {
+            key.hash_content(state);
+            hash_len(state, values.len());
+            for value in values {
+                value.hash_content(state);
+            }
+        }
+    }
+}
+
+impl HashContent for Bindings {
+    fn hash_content(&self, state: &mut sha2::Sha256) {
+        hash_len(state, self.len());
+        for (key, value) in self {
+            key.hash_content(state);
+            value.hash_content(state);
+        }
+    }
+}

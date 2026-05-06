@@ -20,6 +20,30 @@ fn package() {
 }
 
 #[test]
+fn shasum() {
+    let package = include_str!("../contrib/package.yml");
+    let package: Resource = serde_yml::from_str(package).unwrap();
+    let reordered = include_str!("../contrib/package-reordered.yml");
+    let reordered: Resource = serde_yml::from_str(reordered).unwrap();
+    let package_sum = package.sha256();
+    assert_eq!(package_sum, reordered.sha256());
+    assert_eq!(package_sum.to_string().len(), 64);
+    assert_eq!(
+        package_sum.to_string().parse::<ShaSum>().unwrap(),
+        package_sum
+    );
+    let package = include_str!("../contrib/package.yml");
+    let resource: Resource = serde_yml::from_str(package).unwrap();
+    let package: Package = serde_yml::from_str(package).unwrap();
+    assert_eq!(package.sha256(), resource.sha256());
+    let package = include_str!("../contrib/package.yml");
+    let package: Resource = serde_yml::from_str(package).unwrap();
+    let act = include_str!("../contrib/act.yml");
+    let act: Resource = serde_yml::from_str(act).unwrap();
+    assert_ne!(package.sha256(), act.sha256());
+}
+
+#[test]
 fn act() {
     let act = include_str!("../contrib/act.yml");
     let act: Resource = serde_yml::from_str(act).unwrap();

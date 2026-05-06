@@ -71,3 +71,9 @@ impl std::fmt::Display for Var {
         f.write_str(&self.0)
     }
 }
+
+impl HashContent for Var {
+    fn hash_content(&self, state: &mut sha2::Sha256) {
+        hash_str(state, &self.0);
+    }
+}

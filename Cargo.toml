@@ -9,6 +9,7 @@ license = "GPL-3.0-only"
 [workspace.dependencies]
 fase-api = { path = "./fase-api" }
 
+bytes = { version = "1" }
 clap = { version = "4", features = ["derive"] }
 compio = { version = "0.19.0-rc.1", features = [
   "io-uring",
@@ -22,4 +23,5 @@ regex = { version = "1" }
 serde = { version = "1", features = ["derive"] }
 serde-value = { version = "0.7" }
 serde_yml = { version = "0.0.12" }
+sha2 = { version = "0.11" }
 url = { version = "2", features = ["serde"] }

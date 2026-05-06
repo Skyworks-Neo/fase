@@ -6,6 +6,18 @@ pub struct Build {
     pub steps: Vec<Step>,
 }
 
-impl AnyResource for Build {
+impl ResourceKind for Build {
     const KIND: &'static str = "Build";
+}
+
+impl HashContent for Build {
+    fn hash_content(&self, state: &mut sha2::Sha256) {
+        hash_field(state, "labels");
+        self.labels.hash_content(state);
+        hash_field(state, "steps");
+        hash_len(state, self.steps.len());
+        for step in &self.steps {
+            step.hash_content(state);
+        }
+    }
 }

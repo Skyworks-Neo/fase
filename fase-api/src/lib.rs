@@ -5,12 +5,14 @@ mod build;
 mod install;
 mod kustomize;
 mod package;
+mod sha;
 mod var;
 
 #[cfg(test)]
 mod test;
 
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
 
 pub use url::Url;
 
@@ -21,7 +23,10 @@ pub use build::Build;
 pub use install::Install;
 pub use kustomize::Kustomize;
 pub use package::Package;
+pub use sha::{Sha, ShaSum};
 pub use var::{Var, VarError};
+
+use sha::{HashContent, hash_field, hash_len, hash_str};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(transparent)]
@@ -29,7 +34,7 @@ pub struct LabelMap {
     inner: BTreeMap<Var, Var>,
 }
 
-trait AnyResource {
+trait ResourceKind {
     const API_VERSION: &'static str = "v1alpha1";
     const KIND: &'static str;
 }
@@ -99,7 +104,7 @@ struct ResourceEnvelope<'a, T: ?Sized> {
 
 fn serialize_with_header<R, S>(resource: &R, serializer: S) -> Result<S::Ok, S::Error>
 where
-    R: AnyResource + Serialize,
+    R: ResourceKind + Serialize,
     S: serde::Serializer,
 {
     ResourceEnvelope {

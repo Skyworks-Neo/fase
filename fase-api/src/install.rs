@@ -8,6 +8,22 @@ pub struct Install {
     pub prefer: Vec<LabelMap>,
 }
 
-impl AnyResource for Install {
+impl ResourceKind for Install {
     const KIND: &'static str = "Install";
+}
+
+impl HashContent for Install {
+    fn hash_content(&self, state: &mut sha2::Sha256) {
+        hash_field(state, "must");
+        hash_len(state, self.must.len());
+        for labels in &self.must {
+            labels.hash_content(state);
+        }
+
+        hash_field(state, "prefer");
+        hash_len(state, self.prefer.len());
+        for labels in &self.prefer {
+            labels.hash_content(state);
+        }
+    }
 }
