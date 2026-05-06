@@ -12,9 +12,11 @@ mod test;
 
 use serde::{Deserialize, Serialize};
 
+pub use url::Url;
+
 use std::collections::BTreeMap;
 
-pub use act::Act;
+pub use act::{Act, Matrix};
 pub use build::Build;
 pub use install::Install;
 pub use kustomize::Kustomize;

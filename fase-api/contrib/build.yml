@@ -1,0 +1,10 @@
+apiVersion: v1alpha1
+kind: Build
+labels:
+  fooname: bar
+steps:
+  - inputs:
+      - typ: http
+        url: https://github.com
+    map:
+      typ: zstd
