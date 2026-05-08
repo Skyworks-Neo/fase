@@ -20,8 +20,6 @@ impl ResourceKind for Act {
 
 impl HashContent for Act {
     fn hash_content(&self, state: &mut sha2::Sha256) {
-        hash_field(state, "labels");
-        self.labels.hash_content(state);
         hash_field(state, "inputs");
         hash_len(state, self.inputs.len());
         for input in &self.inputs {
@@ -103,24 +101,6 @@ impl Expr {
         Ok(expanded)
     }
 }
-
-// impl Serialize for Expr {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: serde::Serializer,
-//     {
-//         serializer.serialize_str(&self.0)
-//     }
-// }
-
-// impl<'de> Deserialize<'de> for Expr {
-//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-//     where
-//         D: serde::Deserializer<'de>,
-//     {
-//         Ok(Self(<Box<str>>::deserialize(deserializer)?))
-//     }
-// }
 
 #[derive(Debug)]
 pub enum ExprError {

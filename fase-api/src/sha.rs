@@ -44,6 +44,25 @@ impl std::str::FromStr for ShaSum {
     }
 }
 
+impl Serialize for ShaSum {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for ShaSum {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = <Box<str>>::deserialize(deserializer)?;
+        value.parse().map_err(serde::de::Error::custom)
+    }
+}
+
 pub fn hash_field(sha: &mut sha2::Sha256, name: &str) {
     hash_bytes(sha, b"field", name.as_bytes());
 }
@@ -70,6 +89,7 @@ impl Sha for Resource {
             Resource::Kustomize(resource) => resource.sha256(),
             Resource::Install(resource) => resource.sha256(),
             Resource::Build(resource) => resource.sha256(),
+            Resource::Realize(resource) => resource.sha256(),
         }
     }
 }
@@ -92,7 +112,13 @@ macro_rules! impl_sha {
     };
 }
 
-impl_sha!(Act, Package, Kustomize, Install, Build);
+impl_sha!(Act, Package, Kustomize, Install, Build, Realize);
+
+impl HashContent for ShaSum {
+    fn hash_content(&self, sha: &mut sha2::Sha256) {
+        hash_bytes(sha, b"sha256", self.as_bytes());
+    }
+}
 
 impl HashContent for LabelMap {
     fn hash_content(&self, sha: &mut sha2::Sha256) {

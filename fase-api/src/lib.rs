@@ -5,6 +5,7 @@ mod build;
 mod install;
 mod kustomize;
 mod package;
+mod realize;
 mod sha;
 mod var;
 
@@ -23,6 +24,7 @@ pub use build::Build;
 pub use install::Install;
 pub use kustomize::Kustomize;
 pub use package::Package;
+pub use realize::{Realize, RealizeStep};
 pub use sha::{Sha, ShaSum};
 pub use var::{Var, VarError};
 
@@ -46,6 +48,7 @@ pub enum Resource {
     Kustomize(Kustomize),
     Install(Install),
     Build(Build),
+    Realize(Realize),
 }
 
 impl<'de> serde::Deserialize<'de> for Resource {
@@ -78,6 +81,9 @@ impl<'de> serde::Deserialize<'de> for Resource {
                     .map_err(<D::Error as serde::de::Error>::custom),
                 (Build::KIND, Build::API_VERSION) => <Build>::deserialize(value)
                     .map(Resource::Build)
+                    .map_err(<D::Error as serde::de::Error>::custom),
+                (Realize::KIND, Realize::API_VERSION) => <Realize>::deserialize(value)
+                    .map(Resource::Realize)
                     .map_err(<D::Error as serde::de::Error>::custom),
                 (kind, ver) => Err(<D::Error as serde::de::Error>::custom(format!(
                     "kind={kind} apiVersion={ver} is not supported"
@@ -126,6 +132,7 @@ impl Serialize for Resource {
             Resource::Kustomize(resource) => serialize_with_header(resource, serializer),
             Resource::Install(resource) => serialize_with_header(resource, serializer),
             Resource::Build(resource) => serialize_with_header(resource, serializer),
+            Resource::Realize(resource) => serialize_with_header(resource, serializer),
         }
     }
 }

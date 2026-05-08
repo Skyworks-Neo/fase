@@ -12,8 +12,6 @@ impl ResourceKind for Build {
 
 impl HashContent for Build {
     fn hash_content(&self, state: &mut sha2::Sha256) {
-        hash_field(state, "labels");
-        self.labels.hash_content(state);
         hash_field(state, "steps");
         hash_len(state, self.steps.len());
         for step in &self.steps {

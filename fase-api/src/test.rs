@@ -25,8 +25,11 @@ fn shasum() {
     let package: Resource = serde_yml::from_str(package).unwrap();
     let reordered = include_str!("../contrib/package-reordered.yml");
     let reordered: Resource = serde_yml::from_str(reordered).unwrap();
+    let other_labels = include_str!("../contrib/package-other-labels.yml");
+    let other_labels: Resource = serde_yml::from_str(other_labels).unwrap();
     let package_sum = package.sha256();
     assert_eq!(package_sum, reordered.sha256());
+    assert_eq!(package_sum, other_labels.sha256());
     assert_eq!(package_sum.to_string().len(), 64);
     assert_eq!(
         package_sum.to_string().parse::<ShaSum>().unwrap(),
@@ -41,6 +44,9 @@ fn shasum() {
     let act = include_str!("../contrib/act.yml");
     let act: Resource = serde_yml::from_str(act).unwrap();
     assert_ne!(package.sha256(), act.sha256());
+    let relabeled_act = include_str!("../contrib/act-other-labels.yml");
+    let relabeled_act: Resource = serde_yml::from_str(relabeled_act).unwrap();
+    assert_eq!(act.sha256(), relabeled_act.sha256());
 }
 
 #[test]
@@ -81,4 +87,11 @@ fn build() {
     let build = include_str!("../contrib/build.yml");
     let build: Resource = serde_yml::from_str(build).unwrap();
     assert!(matches!(build, Resource::Build(_)));
+}
+
+#[test]
+fn realize() {
+    let realize = include_str!("../contrib/realize.yml");
+    let realize: Resource = serde_yml::from_str(realize).unwrap();
+    assert!(matches!(realize, Resource::Realize(_)));
 }

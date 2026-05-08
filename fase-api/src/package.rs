@@ -10,8 +10,5 @@ impl ResourceKind for Package {
 }
 
 impl HashContent for Package {
-    fn hash_content(&self, state: &mut sha2::Sha256) {
-        hash_field(state, "labels");
-        self.labels.hash_content(state);
-    }
+    fn hash_content(&self, _state: &mut sha2::Sha256) {}
 }
