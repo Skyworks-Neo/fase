@@ -1,15 +1,27 @@
 use super::*;
 
+/// Values used to expand one logical act into multiple concrete cases.
 pub type Matrix = BTreeMap<Var, Vec<Var>>;
+/// Variable bindings passed from a build step into an act.
 pub type Bindings = BTreeMap<Var, Expr>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A reusable build action.
+///
+/// An `Act` describes the recipe for transforming inputs into outputs. Its
+/// labels are used to find the act from a `Build`, but labels are not part of
+/// the act content hash.
 pub struct Act {
+    /// Metadata used when a build references this act by label.
     pub labels: LabelMap,
+    /// Inputs consumed by this act.
     pub inputs: Vec<Input>,
+    /// Transformation applied to the inputs.
     pub map: Map,
+    /// Optional variable matrix used to expand this act.
     #[serde(default)]
     pub matrix: Matrix,
+    /// Outputs declared by this act.
     #[serde(default)]
     pub outputs: Vec<Output>,
 }
@@ -38,11 +50,16 @@ impl HashContent for Act {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A build step that references an act and binds values for it.
 pub struct Step {
+    /// Step identifier within a build.
     pub id: Var,
+    /// Label selector used to choose the act for this step.
     pub act: ActRef,
+    /// Values passed to the selected act.
     #[serde(default)]
     pub with: Bindings,
+    /// Step identifiers that must finish before this step can run.
     #[serde(default)]
     pub needs: Vec<Var>,
 }
@@ -65,6 +82,7 @@ impl HashContent for Step {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
+/// A label selector for an act.
 pub struct ActRef(pub LabelMap);
 
 impl HashContent for ActRef {
@@ -74,6 +92,7 @@ impl HashContent for ActRef {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+/// A string expression that can expand `${name}` variables.
 pub struct Expr(Box<str>);
 
 impl Expr {
@@ -130,7 +149,9 @@ impl HashContent for Expr {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "typ")]
+/// An input source consumed by an act.
 pub enum Input {
+    /// Fetch input from an HTTP URL expression.
     Http { url: Expr },
 }
 
@@ -149,6 +170,7 @@ impl HashContent for Input {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "typ")]
+/// The transformation performed by an act.
 pub enum Map {
     /// do noting to input, pass it to output directly.
     Identity,
@@ -174,6 +196,7 @@ impl HashContent for Map {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "typ")]
+/// An output declared by an act.
 pub enum Output {}
 
 impl HashContent for Output {

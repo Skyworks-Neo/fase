@@ -2,9 +2,17 @@ use super::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+/// A concrete build graph produced from a `Build`.
+///
+/// `Realize` records which acts were selected and which bindings will be used.
+/// It is a resolved plan, not an execution cache record; layer cache keys belong
+/// to a separate cache/layer model.
 pub struct Realize {
+    /// Metadata used to select or organize this realized graph.
     pub labels: LabelMap,
+    /// Content hash of the source `Build`.
     pub build: ShaSum,
+    /// Concrete steps after act selection and binding expansion.
     pub steps: Vec<RealizeStep>,
 }
 
@@ -25,11 +33,16 @@ impl HashContent for Realize {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A concrete step in a realized build graph.
 pub struct RealizeStep {
+    /// Step identifier within the realized graph.
     pub id: Var,
+    /// Content hash of the selected act.
     pub act: ShaSum,
+    /// Values passed to the selected act.
     #[serde(default)]
     pub with: Bindings,
+    /// Step identifiers that must finish before this step can run.
     #[serde(default)]
     pub needs: Vec<Var>,
 }

@@ -1,6 +1,10 @@
 use super::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A package installation request.
+///
+/// `Install` describes selectors for choosing packages. Unlike resource
+/// metadata labels, these selector fields are part of install content.
 pub struct Install {
     /// Label selectors that candidate packages must match.
     pub must: Vec<LabelMap>,

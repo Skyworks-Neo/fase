@@ -3,10 +3,15 @@ use super::*;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A kustomization-like resource collection.
+///
+/// `Kustomize` points at resource files or directories and describes labels to
+/// apply to collected resources.
 pub struct Kustomize {
+    /// Paths to resource files or directories.
     pub resources: Vec<PathBuf>,
-    #[serde(default)]
     /// Labels added to all resources collected by this Kustomize.
+    #[serde(default)]
     pub labels: Vec<LabelMap>,
 }
 

@@ -1,8 +1,14 @@
 use super::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// User-authored build intent.
+///
+/// A `Build` references acts by labels and describes the step graph the user
+/// wants to run. It is not pinned to concrete act hashes until it is realized.
 pub struct Build {
+    /// Metadata used to select or organize this build.
     pub labels: LabelMap,
+    /// Ordered step declarations for the build graph.
     pub steps: Vec<Step>,
 }
 

@@ -1,7 +1,12 @@
 use super::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A package selected or produced by Fase.
+///
+/// A `Package` is currently identified only by labels. Labels are metadata used
+/// for selection and do not contribute to the package content hash.
 pub struct Package {
+    /// Metadata used to select this package.
     pub labels: LabelMap,
 }
 

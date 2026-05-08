@@ -32,6 +32,10 @@ use sha::{HashContent, hash_field, hash_len, hash_str};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(transparent)]
+/// Labels attached to resources or used as selectors.
+///
+/// `LabelMap` keeps keys sorted so serialization-independent operations such as
+/// hashing see a stable order.
 pub struct LabelMap {
     inner: BTreeMap<Var, Var>,
 }
@@ -42,12 +46,22 @@ trait ResourceKind {
 }
 
 #[derive(Debug, Clone)]
+/// Any supported Fase resource.
+///
+/// This enum is the format-dispatch type used when deserializing documents with
+/// `apiVersion` and `kind` headers.
 pub enum Resource {
+    /// A reusable build action.
     Act(Act),
+    /// A selected or produced package.
     Package(Package),
+    /// A kustomization-like resource collection.
     Kustomize(Kustomize),
+    /// A package installation request.
     Install(Install),
+    /// User-authored build intent.
     Build(Build),
+    /// Concrete build graph produced from a `Build`.
     Realize(Realize),
 }
 
