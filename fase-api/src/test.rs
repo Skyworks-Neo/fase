@@ -69,6 +69,31 @@ fn expr() {
 }
 
 #[test]
+fn cel_expr() {
+    let expr: Expr = serde_yml::from_str("\"'https://example.com/' + path\"\n").unwrap();
+    let mut vars = BTreeMap::new();
+    vars.insert(Var::new("path").unwrap(), "source.tar.gz".to_owned());
+
+    assert_eq!(
+        expr.eval_string(&vars).unwrap(),
+        "https://example.com/source.tar.gz"
+    );
+
+    let expr: Expr = serde_yml::from_str("\"path.endsWith('.tar.gz')\"\n").unwrap();
+    assert_eq!(expr.eval(&vars).unwrap(), true.into());
+
+    vars.insert(
+        Var::new("source-url").unwrap(),
+        "https://example.com".to_owned(),
+    );
+    let expr: Expr = serde_yml::from_str("\"vars['source-url'] + '/' + path\"\n").unwrap();
+    assert_eq!(
+        expr.eval_string(&vars).unwrap(),
+        "https://example.com/source.tar.gz"
+    );
+}
+
+#[test]
 fn malvar() {
     let package = include_str!("../contrib/package-invalid-var.yml");
     let package: Result<Resource, serde_yml::Error> = serde_yml::from_str(package);

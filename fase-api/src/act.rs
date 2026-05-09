@@ -96,6 +96,49 @@ impl HashContent for ActRef {
 pub struct Expr(Box<str>);
 
 impl Expr {
+    pub fn eval(&self, vars: &BTreeMap<Var, String>) -> Result<cel::Value, ExprError> {
+        // TODO: Cache compiled CEL programs for expressions that are evaluated repeatedly.
+        let program = cel::Program::compile(&self.0).map_err(|err| ExprError::CelParse {
+            expr: self.0.clone(),
+            source: err.to_string(),
+        })?;
+        let mut context = cel::Context::default();
+        let vars_map = vars
+            .iter()
+            .map(|(name, value)| (name.to_string(), value.clone()))
+            .collect::<BTreeMap<_, _>>();
+        context
+            .add_variable("vars", vars_map)
+            .map_err(|err| ExprError::CelVariable {
+                name: Var::new("vars").expect("static variable name is valid"),
+                source: err.to_string(),
+            })?;
+        for (name, value) in vars {
+            context
+                .add_variable(name.to_string(), value.as_str())
+                .map_err(|err| ExprError::CelVariable {
+                    name: name.clone(),
+                    source: err.to_string(),
+                })?;
+        }
+        program
+            .execute(&context)
+            .map_err(|err| ExprError::CelExecution {
+                expr: self.0.clone(),
+                source: err.to_string(),
+            })
+    }
+
+    pub fn eval_string(&self, vars: &BTreeMap<Var, String>) -> Result<String, ExprError> {
+        match self.eval(vars)? {
+            cel::Value::String(value) => Ok(value.as_ref().clone()),
+            value => Err(ExprError::ExpectedString {
+                expr: self.0.clone(),
+                typ: value.type_of().to_string(),
+            }),
+        }
+    }
+
     pub fn expand(&self, vars: &BTreeMap<Var, String>) -> Result<String, ExprError> {
         let mut expanded = String::new();
         let mut rest = self.0.as_ref();
@@ -126,6 +169,10 @@ pub enum ExprError {
     UnclosedVariable { expr: Box<str> },
     InvalidVariable { name: Box<str> },
     UnknownVariable { name: Var },
+    CelParse { expr: Box<str>, source: String },
+    CelVariable { name: Var, source: String },
+    CelExecution { expr: Box<str>, source: String },
+    ExpectedString { expr: Box<str>, typ: String },
 }
 
 impl std::fmt::Display for ExprError {
@@ -134,6 +181,18 @@ impl std::fmt::Display for ExprError {
             ExprError::UnclosedVariable { expr } => write!(f, "unclosed variable in {expr}"),
             ExprError::InvalidVariable { name } => write!(f, "{name} is not a valid variable name"),
             ExprError::UnknownVariable { name } => write!(f, "{name} is not defined"),
+            ExprError::CelParse { expr, source } => {
+                write!(f, "failed to parse CEL expression {expr}: {source}")
+            }
+            ExprError::CelVariable { name, source } => {
+                write!(f, "failed to add CEL variable {name}: {source}")
+            }
+            ExprError::CelExecution { expr, source } => {
+                write!(f, "failed to execute CEL expression {expr}: {source}")
+            }
+            ExprError::ExpectedString { expr, typ } => {
+                write!(f, "CEL expression {expr} returned {typ}, expected string")
+            }
         }
     }
 }

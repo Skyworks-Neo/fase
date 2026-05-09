@@ -10,6 +10,7 @@ license = "GPL-3.0-only"
 fase-api = { path = "./fase-api" }
 
 bytes = { version = "1" }
+cel = { version = "0.13" }
 clap = { version = "4", features = ["derive"] }
 compio = { version = "0.19.0-rc.1", features = [
   "io-uring",
