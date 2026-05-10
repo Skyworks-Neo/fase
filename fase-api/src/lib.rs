@@ -7,37 +7,34 @@ mod kustomize;
 mod package;
 mod realize;
 mod sha;
-mod var;
 
 #[cfg(test)]
 mod test;
 
+pub use sha2::Sha256;
+
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
 
-pub use url::Url;
-
 use std::collections::BTreeMap;
 
-pub use act::{Act, ActRef, Bindings, Expr, ExprError, Matrix, Step};
+pub use act::{Act, ActRef, Bindings, Input, Map, Matrix, Output, Step};
 pub use build::Build;
 pub use install::Install;
 pub use kustomize::Kustomize;
 pub use package::Package;
 pub use realize::{Realize, RealizeStep};
-pub use sha::{Sha, ShaSum};
-pub use var::{Var, VarError};
-
-use sha::{HashContent, hash_field, hash_len, hash_str};
+pub use sha::{HashContent, Sha, ShaSum, hash_field, hash_len, hash_str};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(bound(deserialize = "K: Ord + Deserialize<'de>", serialize = "K: Serialize"))]
 #[serde(transparent)]
 /// Labels attached to resources or used as selectors.
 ///
 /// `LabelMap` keeps keys sorted so serialization-independent operations such as
 /// hashing see a stable order.
-pub struct LabelMap {
-    inner: BTreeMap<Var, Var>,
+pub struct LabelMap<K> {
+    inner: BTreeMap<K, K>,
 }
 
 trait ResourceKind {
@@ -50,22 +47,26 @@ trait ResourceKind {
 ///
 /// This enum is the format-dispatch type used when deserializing documents with
 /// `apiVersion` and `kind` headers.
-pub enum Resource {
+pub enum Resource<K, E> {
     /// A reusable build action.
-    Act(Act),
+    Act(Act<K, E>),
     /// A selected or produced package.
-    Package(Package),
+    Package(Package<K>),
     /// A kustomization-like resource collection.
-    Kustomize(Kustomize),
+    Kustomize(Kustomize<K>),
     /// A package installation request.
-    Install(Install),
+    Install(Install<K>),
     /// User-authored build intent.
-    Build(Build),
+    Build(Build<K, E>),
     /// Concrete build graph produced from a `Build`.
-    Realize(Realize),
+    Realize(Realize<K, E>),
 }
 
-impl<'de> serde::Deserialize<'de> for Resource {
+impl<'de, K, E> serde::Deserialize<'de> for Resource<K, E>
+where
+    K: Ord + serde::Deserialize<'de>,
+    E: serde::Deserialize<'de>,
+{
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -81,24 +82,30 @@ impl<'de> serde::Deserialize<'de> for Resource {
             .map_err(<D::Error as serde::de::Error>::custom)
         {
             match (header.kind.as_str(), header.api_version.as_str()) {
-                (Act::KIND, Act::API_VERSION) => <Act>::deserialize(value)
+                (Act::<K, E>::KIND, Act::<K, E>::API_VERSION) => <Act<K, E>>::deserialize(value)
                     .map(Resource::Act)
                     .map_err(<D::Error as serde::de::Error>::custom),
-                (Package::KIND, Package::API_VERSION) => <Package>::deserialize(value)
+                (Package::<K>::KIND, Package::<K>::API_VERSION) => <Package<K>>::deserialize(value)
                     .map(Resource::Package)
                     .map_err(<D::Error as serde::de::Error>::custom),
-                (Install::KIND, Install::API_VERSION) => <Install>::deserialize(value)
+                (Install::<K>::KIND, Install::<K>::API_VERSION) => <Install<K>>::deserialize(value)
                     .map(Resource::Install)
                     .map_err(<D::Error as serde::de::Error>::custom),
-                (Kustomize::KIND, Kustomize::API_VERSION) => <Kustomize>::deserialize(value)
-                    .map(Resource::Kustomize)
-                    .map_err(<D::Error as serde::de::Error>::custom),
-                (Build::KIND, Build::API_VERSION) => <Build>::deserialize(value)
-                    .map(Resource::Build)
-                    .map_err(<D::Error as serde::de::Error>::custom),
-                (Realize::KIND, Realize::API_VERSION) => <Realize>::deserialize(value)
-                    .map(Resource::Realize)
-                    .map_err(<D::Error as serde::de::Error>::custom),
+                (Kustomize::<K>::KIND, Kustomize::<K>::API_VERSION) => {
+                    <Kustomize<K>>::deserialize(value)
+                        .map(Resource::Kustomize)
+                        .map_err(<D::Error as serde::de::Error>::custom)
+                }
+                (Build::<K, E>::KIND, Build::<K, E>::API_VERSION) => {
+                    <Build<K, E>>::deserialize(value)
+                        .map(Resource::Build)
+                        .map_err(<D::Error as serde::de::Error>::custom)
+                }
+                (Realize::<K, E>::KIND, Realize::<K, E>::API_VERSION) => {
+                    <Realize<K, E>>::deserialize(value)
+                        .map(Resource::Realize)
+                        .map_err(<D::Error as serde::de::Error>::custom)
+                }
                 (kind, ver) => Err(<D::Error as serde::de::Error>::custom(format!(
                     "kind={kind} apiVersion={ver} is not supported"
                 ))),
@@ -106,7 +113,7 @@ impl<'de> serde::Deserialize<'de> for Resource {
         }
         // try to deserialize as Kustomize
         else {
-            <Kustomize>::deserialize(value)
+            <Kustomize<K>>::deserialize(value)
                 .map(Resource::Kustomize)
                 .map_err(<D::Error as serde::de::Error>::custom)
         }
@@ -135,7 +142,11 @@ where
     .serialize(serializer)
 }
 
-impl Serialize for Resource {
+impl<K, E> Serialize for Resource<K, E>
+where
+    K: Serialize,
+    E: Serialize,
+{
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,

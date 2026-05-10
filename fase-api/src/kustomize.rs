@@ -3,24 +3,28 @@ use super::*;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(deserialize = "K: Ord + Deserialize<'de>", serialize = "K: Serialize"))]
 /// A kustomization-like resource collection.
 ///
 /// `Kustomize` points at resource files or directories and describes labels to
 /// apply to collected resources.
-pub struct Kustomize {
+pub struct Kustomize<K> {
     /// Paths to resource files or directories.
     pub resources: Vec<PathBuf>,
     /// Labels added to all resources collected by this Kustomize.
     #[serde(default)]
-    pub labels: Vec<LabelMap>,
+    pub labels: Vec<LabelMap<K>>,
 }
 
-impl ResourceKind for Kustomize {
+impl<K> ResourceKind for Kustomize<K> {
     const KIND: &'static str = "Kustomize";
 }
 
-impl HashContent for Kustomize {
-    fn hash_content(&self, state: &mut sha2::Sha256) {
+impl<K> HashContent for Kustomize<K>
+where
+    K: HashContent,
+{
+    fn hash_content(&self, state: &mut Sha256) {
         hash_field(state, "resources");
         hash_len(state, self.resources.len());
         for resource in &self.resources {

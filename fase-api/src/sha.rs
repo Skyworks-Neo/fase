@@ -1,7 +1,7 @@
 use super::*;
 
 pub trait HashContent {
-    fn hash_content(&self, sha: &mut sha2::Sha256);
+    fn hash_content(&self, sha: &mut Sha256);
 }
 
 pub trait Sha {
@@ -63,25 +63,29 @@ impl<'de> Deserialize<'de> for ShaSum {
     }
 }
 
-pub fn hash_field(sha: &mut sha2::Sha256, name: &str) {
+pub fn hash_field(sha: &mut Sha256, name: &str) {
     hash_bytes(sha, b"field", name.as_bytes());
 }
 
-pub fn hash_str(sha: &mut sha2::Sha256, value: &str) {
+pub fn hash_str(sha: &mut Sha256, value: &str) {
     hash_bytes(sha, b"str", value.as_bytes());
 }
 
-pub fn hash_len(sha: &mut sha2::Sha256, len: usize) {
+pub fn hash_len(sha: &mut Sha256, len: usize) {
     sha.update((len as u64).to_be_bytes());
 }
 
-fn hash_bytes(sha: &mut sha2::Sha256, tag: &[u8], value: &[u8]) {
+fn hash_bytes(sha: &mut Sha256, tag: &[u8], value: &[u8]) {
     sha.update(tag);
     hash_len(sha, value.len());
     sha.update(value);
 }
 
-impl Sha for Resource {
+impl<K, E> Sha for Resource<K, E>
+where
+    K: HashContent,
+    E: HashContent,
+{
     fn sha256(&self) -> ShaSum {
         match self {
             Resource::Act(resource) => resource.sha256(),
@@ -94,34 +98,110 @@ impl Sha for Resource {
     }
 }
 
-macro_rules! impl_sha {
-    ($($resource:ty),* $(,)?) => {
-        $(
-            impl Sha for $resource {
-                fn sha256(&self) -> ShaSum {
-                    let mut sha = sha2::Sha256::new();
-                    hash_field(&mut sha, "apiVersion");
-                    hash_str(&mut sha, <Self as ResourceKind>::API_VERSION);
-                    hash_field(&mut sha, "kind");
-                    hash_str(&mut sha, <Self as ResourceKind>::KIND);
-                    self.hash_content(&mut sha);
-                    ShaSum(sha.finalize().into())
-                }
-            }
-        )*
-    };
+fn sha_resource<R>(resource: &R) -> ShaSum
+where
+    R: ResourceKind + HashContent,
+{
+    let mut sha = Sha256::new();
+    hash_field(&mut sha, "apiVersion");
+    hash_str(&mut sha, R::API_VERSION);
+    hash_field(&mut sha, "kind");
+    hash_str(&mut sha, R::KIND);
+    resource.hash_content(&mut sha);
+    ShaSum(sha.finalize().into())
 }
 
-impl_sha!(Act, Package, Kustomize, Install, Build, Realize);
+impl<K, E> Sha for Act<K, E>
+where
+    K: HashContent,
+    E: HashContent,
+{
+    fn sha256(&self) -> ShaSum {
+        sha_resource(self)
+    }
+}
+
+impl<K> Sha for Package<K> {
+    fn sha256(&self) -> ShaSum {
+        sha_resource(self)
+    }
+}
+
+impl<K> Sha for Kustomize<K>
+where
+    K: HashContent,
+{
+    fn sha256(&self) -> ShaSum {
+        sha_resource(self)
+    }
+}
+
+impl<K> Sha for Install<K>
+where
+    K: HashContent,
+{
+    fn sha256(&self) -> ShaSum {
+        sha_resource(self)
+    }
+}
+
+impl<K, E> Sha for Build<K, E>
+where
+    K: HashContent,
+    E: HashContent,
+{
+    fn sha256(&self) -> ShaSum {
+        sha_resource(self)
+    }
+}
+
+impl<K, E> Sha for Realize<K, E>
+where
+    K: HashContent,
+    E: HashContent,
+{
+    fn sha256(&self) -> ShaSum {
+        sha_resource(self)
+    }
+}
+
+impl<T> HashContent for Vec<T>
+where
+    T: HashContent,
+{
+    fn hash_content(&self, sha: &mut Sha256) {
+        hash_len(sha, self.len());
+        for value in self {
+            value.hash_content(sha);
+        }
+    }
+}
+
+impl<K, V> HashContent for BTreeMap<K, V>
+where
+    K: HashContent,
+    V: HashContent,
+{
+    fn hash_content(&self, sha: &mut Sha256) {
+        hash_len(sha, self.len());
+        for (key, value) in self {
+            key.hash_content(sha);
+            value.hash_content(sha);
+        }
+    }
+}
 
 impl HashContent for ShaSum {
-    fn hash_content(&self, sha: &mut sha2::Sha256) {
+    fn hash_content(&self, sha: &mut Sha256) {
         hash_bytes(sha, b"sha256", self.as_bytes());
     }
 }
 
-impl HashContent for LabelMap {
-    fn hash_content(&self, sha: &mut sha2::Sha256) {
+impl<K> HashContent for LabelMap<K>
+where
+    K: HashContent,
+{
+    fn hash_content(&self, sha: &mut Sha256) {
         hash_len(sha, self.inner.len());
         for (key, value) in &self.inner {
             key.hash_content(sha);
