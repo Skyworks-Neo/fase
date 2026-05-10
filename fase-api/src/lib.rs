@@ -11,7 +11,7 @@ mod sha;
 #[cfg(test)]
 mod test;
 
-pub use sha2::Sha256;
+pub use sha2::Sha512;
 
 use serde::{Deserialize, Serialize};
 use sha2::Digest;

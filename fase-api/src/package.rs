@@ -16,5 +16,5 @@ impl<K> ResourceKind for Package<K> {
 }
 
 impl<K> HashContent for Package<K> {
-    fn hash_content(&self, _state: &mut Sha256) {}
+    fn hash_content(&self, _state: &mut Sha512) {}
 }

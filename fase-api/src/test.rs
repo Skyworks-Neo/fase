@@ -6,7 +6,7 @@ type RawResource = Resource<RawName, RawExpr>;
 type RawPackage = Package<RawName>;
 
 impl HashContent for Box<str> {
-    fn hash_content(&self, state: &mut Sha256) {
+    fn hash_content(&self, state: &mut Sha512) {
         hash_str(state, self);
     }
 }
@@ -36,10 +36,10 @@ fn shasum() {
     let reordered: RawResource = serde_yml::from_str(reordered).unwrap();
     let other_labels = include_str!("../contrib/package-other-labels.yml");
     let other_labels: RawResource = serde_yml::from_str(other_labels).unwrap();
-    let package_sum = package.sha256();
-    assert_eq!(package_sum, reordered.sha256());
-    assert_eq!(package_sum, other_labels.sha256());
-    assert_eq!(package_sum.to_string().len(), 64);
+    let package_sum = package.sha512();
+    assert_eq!(package_sum, reordered.sha512());
+    assert_eq!(package_sum, other_labels.sha512());
+    assert_eq!(package_sum.to_string().len(), 128);
     assert_eq!(
         package_sum.to_string().parse::<ShaSum>().unwrap(),
         package_sum
@@ -47,15 +47,15 @@ fn shasum() {
     let package = include_str!("../contrib/package.yml");
     let resource: RawResource = serde_yml::from_str(package).unwrap();
     let package: RawPackage = serde_yml::from_str(package).unwrap();
-    assert_eq!(package.sha256(), resource.sha256());
+    assert_eq!(package.sha512(), resource.sha512());
     let package = include_str!("../contrib/package.yml");
     let package: RawResource = serde_yml::from_str(package).unwrap();
     let act = include_str!("../contrib/act.yml");
     let act: RawResource = serde_yml::from_str(act).unwrap();
-    assert_ne!(package.sha256(), act.sha256());
+    assert_ne!(package.sha512(), act.sha512());
     let relabeled_act = include_str!("../contrib/act-other-labels.yml");
     let relabeled_act: RawResource = serde_yml::from_str(relabeled_act).unwrap();
-    assert_eq!(act.sha256(), relabeled_act.sha256());
+    assert_eq!(act.sha512(), relabeled_act.sha512());
 }
 
 #[test]

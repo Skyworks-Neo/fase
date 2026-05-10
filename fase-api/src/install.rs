@@ -21,7 +21,7 @@ impl<K> HashContent for Install<K>
 where
     K: HashContent,
 {
-    fn hash_content(&self, state: &mut Sha256) {
+    fn hash_content(&self, state: &mut Sha512) {
         hash_field(state, "must");
         hash_len(state, self.must.len());
         for labels in &self.must {

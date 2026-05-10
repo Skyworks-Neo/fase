@@ -39,7 +39,7 @@ where
     K: HashContent,
     E: HashContent,
 {
-    fn hash_content(&self, state: &mut Sha256) {
+    fn hash_content(&self, state: &mut Sha512) {
         hash_field(state, "inputs");
         hash_len(state, self.inputs.len());
         for input in &self.inputs {
@@ -81,7 +81,7 @@ where
     K: HashContent,
     E: HashContent,
 {
-    fn hash_content(&self, state: &mut Sha256) {
+    fn hash_content(&self, state: &mut Sha512) {
         hash_field(state, "id");
         self.id.hash_content(state);
         hash_field(state, "act");
@@ -106,7 +106,7 @@ impl<K> HashContent for ActRef<K>
 where
     K: HashContent,
 {
-    fn hash_content(&self, state: &mut Sha256) {
+    fn hash_content(&self, state: &mut Sha512) {
         self.0.hash_content(state);
     }
 }
@@ -125,7 +125,7 @@ impl<E> HashContent for Input<E>
 where
     E: HashContent,
 {
-    fn hash_content(&self, state: &mut Sha256) {
+    fn hash_content(&self, state: &mut Sha512) {
         match self {
             Input::Http { url } => {
                 hash_str(state, "http");
@@ -150,7 +150,7 @@ pub enum Map {
 }
 
 impl HashContent for Map {
-    fn hash_content(&self, state: &mut Sha256) {
+    fn hash_content(&self, state: &mut Sha512) {
         hash_str(
             state,
             match self {
@@ -169,7 +169,7 @@ impl HashContent for Map {
 pub enum Output {}
 
 impl HashContent for Output {
-    fn hash_content(&self, _state: &mut Sha256) {
+    fn hash_content(&self, _state: &mut Sha512) {
         match *self {}
     }
 }
