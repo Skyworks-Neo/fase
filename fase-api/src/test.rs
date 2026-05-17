@@ -108,12 +108,12 @@ fn label() {
     let other = pool.intern("version");
     assert_eq!(first.id(), second.id());
     assert_ne!(first.id(), other.id());
-    assert_eq!(first.as_str(), "name");
+    assert_eq!(first.as_ref(), "name");
 
     let pool = LabelPool::shared();
     let label = pool.intern("old");
     let overridden = label.override_value("new");
-    assert_eq!(overridden.as_str(), "new");
+    assert_eq!(overridden.as_ref(), "new");
     assert!(Arc::ptr_eq(label.pool(), overridden.pool()));
 
     let label = Label::intern("source-url");

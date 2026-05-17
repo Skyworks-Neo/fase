@@ -59,10 +59,6 @@ impl Label {
         &self.pool
     }
 
-    pub fn as_str(&self) -> &str {
-        self.pool.resolve(self.id)
-    }
-
     pub fn override_value(&self, value: &str) -> Self {
         self.pool.intern(value)
     }
@@ -72,6 +68,12 @@ impl Label {
             Arc::ptr_eq(&self.pool, &other.pool),
             "labels from different pools cannot be compared by id"
         );
+    }
+}
+
+impl AsRef<str> for Label {
+    fn as_ref(&self) -> &str {
+        self.pool.resolve(self.id)
     }
 }
 
@@ -108,7 +110,7 @@ impl Serialize for Label {
     where
         S: Serializer,
     {
-        serializer.serialize_str(self.as_str())
+        serializer.serialize_str(self.as_ref())
     }
 }
 
@@ -124,6 +126,6 @@ impl<'de> Deserialize<'de> for Label {
 
 impl HashContent for Label {
     fn hash_content(&self, state: &mut Sha512) {
-        hash_str(state, self.as_str());
+        hash_str(state, self.as_ref());
     }
 }

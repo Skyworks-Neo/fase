@@ -51,13 +51,11 @@ async fn render(path: PathBuf) -> Result<Vec<CliResource>, Box<dyn Error>> {
                 let base = path.parent().unwrap_or_else(|| Path::new("."));
                 let contents = read_to_string(&path).await?;
                 let resources = parse_resources(&path, &contents)?;
-
                 for resource in resources.into_iter().rev() {
                     match resource {
                         Resource::Kustomize(kustomize) => {
                             let mut labels = frame.labels.clone();
                             labels.extend(kustomize.labels);
-
                             for path in kustomize.resources.into_iter().rev() {
                                 work.push(Work::Path(Frame {
                                     path: base.join(path),
