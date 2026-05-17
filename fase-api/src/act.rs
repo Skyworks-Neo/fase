@@ -6,6 +6,7 @@ pub type Matrix<K> = BTreeMap<K, Vec<K>>;
 pub type Bindings<K, E> = BTreeMap<K, E>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[serde(bound(
     deserialize = "K: Ord + Deserialize<'de>, E: Deserialize<'de>",
     serialize = "K: Serialize, E: Serialize"

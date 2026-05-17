@@ -9,3 +9,5 @@ license = { workspace = true }
 clap = { workspace = true }
 compio = { workspace = true }
 fase-api = { workspace = true }
+serde = { workspace = true }
+serde_yml = { workspace = true }

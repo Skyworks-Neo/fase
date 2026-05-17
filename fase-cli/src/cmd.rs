@@ -1,3 +1,5 @@
+use super::*;
+
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -13,4 +15,16 @@ enum Commands {
         #[arg(short, long)]
         kustomize: String,
     },
+    Kustomize {
+        path: PathBuf,
+    },
+}
+
+impl Cmd {
+    pub async fn run(self) -> Result<(), Box<dyn std::error::Error>> {
+        match self.command {
+            Commands::Build { kustomize: _ } => Ok(()),
+            Commands::Kustomize { path } => kustomize::run(path).await,
+        }
+    }
 }

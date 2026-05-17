@@ -98,3 +98,24 @@ fn realize() {
     let realize: RawResource = serde_yml::from_str(realize).unwrap();
     assert!(matches!(realize, Resource::Realize(_)));
 }
+
+#[test]
+fn label() {
+    use std::sync::Arc;
+    let pool = LabelPool::shared();
+    let first = pool.intern("name");
+    let second = pool.intern("name");
+    let other = pool.intern("version");
+    assert_eq!(first.id(), second.id());
+    assert_ne!(first.id(), other.id());
+    assert_eq!(first.as_str(), "name");
+
+    let pool = LabelPool::shared();
+    let label = pool.intern("old");
+    let overridden = label.override_value("new");
+    assert_eq!(overridden.as_str(), "new");
+    assert!(Arc::ptr_eq(label.pool(), overridden.pool()));
+
+    let label = Label::intern("source-url");
+    assert_eq!(serde_yml::to_string(&label).unwrap(), "source-url\n");
+}

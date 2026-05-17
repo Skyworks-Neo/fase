@@ -3,6 +3,7 @@ use super::*;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[serde(bound(deserialize = "K: Ord + Deserialize<'de>", serialize = "K: Serialize"))]
 /// A kustomization-like resource collection.
 ///

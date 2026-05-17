@@ -127,37 +127,3 @@ impl HashContent for Label {
         hash_str(state, self.as_str());
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn label_pool_reuses_ids() {
-        let pool = LabelPool::shared();
-        let first = pool.intern("name");
-        let second = pool.intern("name");
-        let other = pool.intern("version");
-
-        assert_eq!(first.id(), second.id());
-        assert_ne!(first.id(), other.id());
-        assert_eq!(first.as_str(), "name");
-    }
-
-    #[test]
-    fn label_override_uses_same_pool() {
-        let pool = LabelPool::shared();
-        let label = pool.intern("old");
-        let overridden = label.override_value("new");
-
-        assert_eq!(overridden.as_str(), "new");
-        assert!(Arc::ptr_eq(label.pool(), overridden.pool()));
-    }
-
-    #[test]
-    fn serializes_label_as_string() {
-        let label = Label::intern("source-url");
-
-        assert_eq!(serde_yml::to_string(&label).unwrap(), "source-url\n");
-    }
-}

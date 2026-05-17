@@ -14,11 +14,6 @@ mod test;
 
 pub use sha2::Sha512;
 
-use serde::{Deserialize, Serialize};
-use sha2::Digest;
-
-use std::collections::BTreeMap;
-
 pub use act::{Act, ActRef, Bindings, Input, Map, Matrix, Output, Step};
 pub use build::Build;
 pub use install::Install;
@@ -27,7 +22,14 @@ pub use label::{Label, LabelPool};
 pub use lasso::Spur;
 pub use package::Package;
 pub use realize::{Realize, RealizeStep};
-pub use sha::{HashContent, Sha, ShaSum, hash_field, hash_len, hash_str};
+pub use sha::{HashContent, Sha, ShaSum};
+
+use serde::{Deserialize, Serialize};
+use sha2::Digest;
+
+use std::collections::BTreeMap;
+
+use sha::{hash_field, hash_len, hash_str};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(bound(deserialize = "K: Ord + Deserialize<'de>", serialize = "K: Serialize"))]
@@ -38,6 +40,20 @@ pub use sha::{HashContent, Sha, ShaSum, hash_field, hash_len, hash_str};
 /// hashing see a stable order.
 pub struct LabelMap<K> {
     inner: BTreeMap<K, K>,
+}
+
+impl<K> LabelMap<K> {
+    pub fn merge(&mut self, other: &Self)
+    where
+        K: Clone + Ord,
+    {
+        self.inner.extend(
+            other
+                .inner
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone())),
+        );
+    }
 }
 
 trait ResourceKind {
@@ -63,6 +79,27 @@ pub enum Resource<K, E> {
     Build(Build<K, E>),
     /// Concrete build graph produced from a `Build`.
     Realize(Realize<K, E>),
+}
+
+impl<K, E> Resource<K, E> {
+    pub fn labels_mut(&mut self) -> Option<&mut LabelMap<K>> {
+        match self {
+            Resource::Act(resource) => Some(&mut resource.labels),
+            Resource::Package(resource) => Some(&mut resource.labels),
+            Resource::Build(resource) => Some(&mut resource.labels),
+            Resource::Realize(resource) => Some(&mut resource.labels),
+            Resource::Kustomize(_) | Resource::Install(_) => None,
+        }
+    }
+
+    pub fn merge_labels(&mut self, labels: &LabelMap<K>)
+    where
+        K: Clone + Ord,
+    {
+        if let Some(resource_labels) = self.labels_mut() {
+            resource_labels.merge(labels);
+        }
+    }
 }
 
 impl<'de, K, E> serde::Deserialize<'de> for Resource<K, E>

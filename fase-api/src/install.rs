@@ -1,6 +1,7 @@
 use super::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[serde(bound(deserialize = "K: Ord + Deserialize<'de>", serialize = "K: Serialize"))]
 /// A package installation request.
 ///
