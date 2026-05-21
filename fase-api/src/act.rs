@@ -41,20 +41,14 @@ where
     E: HashContent,
 {
     fn hash_content(&self, state: &mut Sha512) {
-        hash_field(state, "inputs");
-        hash_len(state, self.inputs.len());
-        for input in &self.inputs {
-            input.hash_content(state);
-        }
-        hash_field(state, "map");
+        state.field("inputs");
+        self.inputs.hash_content(state);
+        state.field("map");
         self.map.hash_content(state);
-        hash_field(state, "matrix");
+        state.field("matrix");
         self.matrix.hash_content(state);
-        hash_field(state, "outputs");
-        hash_len(state, self.outputs.len());
-        for output in &self.outputs {
-            output.hash_content(state);
-        }
+        state.field("outputs");
+        self.outputs.hash_content(state);
     }
 }
 
@@ -83,17 +77,14 @@ where
     E: HashContent,
 {
     fn hash_content(&self, state: &mut Sha512) {
-        hash_field(state, "id");
+        state.field("id");
         self.id.hash_content(state);
-        hash_field(state, "act");
+        state.field("act");
         self.act.hash_content(state);
-        hash_field(state, "with");
+        state.field("with");
         self.with.hash_content(state);
-        hash_field(state, "needs");
-        hash_len(state, self.needs.len());
-        for need in &self.needs {
-            need.hash_content(state);
-        }
+        state.field("needs");
+        self.needs.hash_content(state);
     }
 }
 
@@ -129,8 +120,8 @@ where
     fn hash_content(&self, state: &mut Sha512) {
         match self {
             Input::Http { url } => {
-                hash_str(state, "http");
-                hash_field(state, "url");
+                state.text("http");
+                state.field("url");
                 url.hash_content(state);
             }
         }
@@ -152,14 +143,17 @@ pub enum Map {
 
 impl HashContent for Map {
     fn hash_content(&self, state: &mut Sha512) {
-        hash_str(
-            state,
-            match self {
-                Map::Identity => "identity",
-                Map::Run => "run",
-                Map::Zstd => "zstd",
-            },
-        );
+        state.text(self.name());
+    }
+}
+
+impl Map {
+    pub(crate) fn name(&self) -> &'static str {
+        match self {
+            Map::Identity => "identity",
+            Map::Run => "run",
+            Map::Zstd => "zstd",
+        }
     }
 }
 

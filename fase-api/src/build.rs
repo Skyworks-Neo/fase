@@ -27,10 +27,7 @@ where
     E: HashContent,
 {
     fn hash_content(&self, state: &mut Sha512) {
-        hash_field(state, "steps");
-        hash_len(state, self.steps.len());
-        for step in &self.steps {
-            step.hash_content(state);
-        }
+        state.field("steps");
+        self.steps.hash_content(state);
     }
 }

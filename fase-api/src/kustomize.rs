@@ -26,16 +26,9 @@ where
     K: HashContent,
 {
     fn hash_content(&self, state: &mut Sha512) {
-        hash_field(state, "resources");
-        hash_len(state, self.resources.len());
-        for resource in &self.resources {
-            hash_str(state, &resource.to_string_lossy());
-        }
-
-        hash_field(state, "labels");
-        hash_len(state, self.labels.len());
-        for labels in &self.labels {
-            labels.hash_content(state);
-        }
+        state.field("resources");
+        self.resources.hash_content(state);
+        state.field("labels");
+        self.labels.hash_content(state);
     }
 }

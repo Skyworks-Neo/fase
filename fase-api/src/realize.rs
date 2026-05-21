@@ -30,13 +30,10 @@ where
     E: HashContent,
 {
     fn hash_content(&self, state: &mut Sha512) {
-        hash_field(state, "build");
+        state.field("build");
         self.build.hash_content(state);
-        hash_field(state, "steps");
-        hash_len(state, self.steps.len());
-        for step in &self.steps {
-            step.hash_content(state);
-        }
+        state.field("steps");
+        self.steps.hash_content(state);
     }
 }
 
@@ -65,16 +62,13 @@ where
     E: HashContent,
 {
     fn hash_content(&self, state: &mut Sha512) {
-        hash_field(state, "id");
+        state.field("id");
         self.id.hash_content(state);
-        hash_field(state, "act");
+        state.field("act");
         self.act.hash_content(state);
-        hash_field(state, "with");
+        state.field("with");
         self.with.hash_content(state);
-        hash_field(state, "needs");
-        hash_len(state, self.needs.len());
-        for need in &self.needs {
-            need.hash_content(state);
-        }
+        state.field("needs");
+        self.needs.hash_content(state);
     }
 }

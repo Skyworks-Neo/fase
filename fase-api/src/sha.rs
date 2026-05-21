@@ -17,6 +17,23 @@ impl ShaSum {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShaParseError {
+    Length,
+    Hex,
+}
+
+impl std::fmt::Display for ShaParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ShaParseError::Length => f.write_str("invalid sha512 sum: expected 128 hex digits"),
+            ShaParseError::Hex => f.write_str("invalid sha512 sum: invalid hex digit"),
+        }
+    }
+}
+
+impl std::error::Error for ShaParseError {}
+
 impl std::fmt::Display for ShaSum {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for byte in self.0 {
@@ -27,20 +44,27 @@ impl std::fmt::Display for ShaSum {
 }
 
 impl std::str::FromStr for ShaSum {
-    type Err = &'static str;
+    type Err = ShaParseError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         if value.len() != 128 {
-            return Err("invalid sha512 sum: expect length is 128");
+            return Err(ShaParseError::Length);
         }
 
         let mut bytes = [0; 64];
-        for (index, byte) in bytes.iter_mut().enumerate() {
-            let start = index * 2;
-            // TODO: remove unwrap
-            *byte = u8::from_str_radix(&value[start..start + 2], 16).unwrap();
+        for (byte, pair) in bytes.iter_mut().zip(value.as_bytes().chunks_exact(2)) {
+            *byte = hex(pair[0])? << 4 | hex(pair[1])?;
         }
         Ok(Self(bytes))
+    }
+}
+
+fn hex(value: u8) -> Result<u8, ShaParseError> {
+    match value {
+        b'0'..=b'9' => Ok(value - b'0'),
+        b'a'..=b'f' => Ok(value - b'a' + 10),
+        b'A'..=b'F' => Ok(value - b'A' + 10),
+        _ => Err(ShaParseError::Hex),
     }
 }
 
@@ -63,22 +87,27 @@ impl<'de> Deserialize<'de> for ShaSum {
     }
 }
 
-pub fn hash_field(sha: &mut Sha512, name: &str) {
-    hash_bytes(sha, b"field", name.as_bytes());
+pub(crate) trait HashWrite {
+    fn bytes(&mut self, tag: &[u8], value: &[u8]);
+    fn write_len(&mut self, len: usize);
+    fn field(&mut self, name: &str) {
+        self.bytes(b"field", name.as_bytes());
+    }
+    fn text(&mut self, value: &str) {
+        self.bytes(b"str", value.as_bytes());
+    }
 }
 
-pub fn hash_str(sha: &mut Sha512, value: &str) {
-    hash_bytes(sha, b"str", value.as_bytes());
-}
+impl HashWrite for Sha512 {
+    fn bytes(&mut self, tag: &[u8], value: &[u8]) {
+        self.update(tag);
+        self.write_len(value.len());
+        self.update(value);
+    }
 
-pub fn hash_len(sha: &mut Sha512, len: usize) {
-    sha.update((len as u64).to_be_bytes());
-}
-
-fn hash_bytes(sha: &mut Sha512, tag: &[u8], value: &[u8]) {
-    sha.update(tag);
-    hash_len(sha, value.len());
-    sha.update(value);
+    fn write_len(&mut self, len: usize) {
+        self.update((len as u64).to_be_bytes());
+    }
 }
 
 impl<K, E> Sha for Resource<K, E>
@@ -103,10 +132,10 @@ where
     R: ResourceKind + HashContent,
 {
     let mut sha = Sha512::new();
-    hash_field(&mut sha, "apiVersion");
-    hash_str(&mut sha, R::API_VERSION);
-    hash_field(&mut sha, "kind");
-    hash_str(&mut sha, R::KIND);
+    sha.field("apiVersion");
+    sha.text(R::API_VERSION);
+    sha.field("kind");
+    sha.text(R::KIND);
     resource.hash_content(&mut sha);
     ShaSum(sha.finalize().into())
 }
@@ -165,15 +194,51 @@ where
     }
 }
 
+impl HashContent for str {
+    fn hash_content(&self, sha: &mut Sha512) {
+        sha.text(self);
+    }
+}
+
+impl HashContent for String {
+    fn hash_content(&self, sha: &mut Sha512) {
+        self.as_str().hash_content(sha);
+    }
+}
+
+impl<T> HashContent for Box<T>
+where
+    T: HashContent + ?Sized,
+{
+    fn hash_content(&self, sha: &mut Sha512) {
+        self.as_ref().hash_content(sha);
+    }
+}
+
+impl<T> HashContent for [T]
+where
+    T: HashContent,
+{
+    fn hash_content(&self, sha: &mut Sha512) {
+        sha.write_len(self.len());
+        for value in self {
+            value.hash_content(sha);
+        }
+    }
+}
+
 impl<T> HashContent for Vec<T>
 where
     T: HashContent,
 {
     fn hash_content(&self, sha: &mut Sha512) {
-        hash_len(sha, self.len());
-        for value in self {
-            value.hash_content(sha);
-        }
+        self.as_slice().hash_content(sha);
+    }
+}
+
+impl HashContent for std::path::PathBuf {
+    fn hash_content(&self, sha: &mut Sha512) {
+        self.to_string_lossy().as_ref().hash_content(sha);
     }
 }
 
@@ -183,7 +248,7 @@ where
     V: HashContent,
 {
     fn hash_content(&self, sha: &mut Sha512) {
-        hash_len(sha, self.len());
+        sha.write_len(self.len());
         for (key, value) in self {
             key.hash_content(sha);
             value.hash_content(sha);
@@ -193,7 +258,7 @@ where
 
 impl HashContent for ShaSum {
     fn hash_content(&self, sha: &mut Sha512) {
-        hash_bytes(sha, b"sha512", self.as_bytes());
+        sha.bytes(b"sha512", self.as_bytes());
     }
 }
 
@@ -202,8 +267,8 @@ where
     K: HashContent,
 {
     fn hash_content(&self, sha: &mut Sha512) {
-        hash_len(sha, self.inner.len());
-        for (key, value) in &self.inner {
+        sha.write_len(self.len());
+        for (key, value) in self.iter() {
             key.hash_content(sha);
             value.hash_content(sha);
         }

@@ -5,12 +5,6 @@ type RawExpr = Box<str>;
 type RawResource = Resource<RawName, RawExpr>;
 type RawPackage = Package<RawName>;
 
-impl HashContent for Box<str> {
-    fn hash_content(&self, state: &mut Sha512) {
-        hash_str(state, self);
-    }
-}
-
 #[test]
 fn kustomize() {
     let kustomize = include_str!("../contrib/kustomize.yml");

@@ -1,5 +1,5 @@
 [workspace]
-members = ["fase-api", "fase-cli"]
+members = ["fase-api", "fase-cli", "fase-runtime"]
 resolver = "3"
 
 [workspace.package]
@@ -9,12 +9,14 @@ license = "GPL-3.0-only"
 [workspace.dependencies]
 fase-api = { path = "./fase-api" }
 fase-cli = { path = "./fase-cli" }
+fase-runtime = { path = "./fase-runtime" }
 
 bytes = { version = "1" }
 cel = { version = "0.13" }
 clap = { version = "4", features = ["derive"] }
 compio = { version = "0.19.0-rc.1", features = [
   "io-uring",
+  "polling",
   "io",
   "fs",
   "fs-dir",
@@ -28,3 +30,4 @@ serde-value = { version = "0.7" }
 serde_yml = { version = "0.0.12" }
 sha2 = { version = "0.11" }
 url = { version = "2", features = ["serde"] }
+zstd = { version = "0.13" }

@@ -1,0 +1,11 @@
+[package]
+name = "fase-runtime"
+version = "0.1.0"
+description = "runtime execution support for fase resources"
+edition = { workspace = true }
+license = { workspace = true }
+
+[dependencies]
+compio = { workspace = true }
+fase-api = { workspace = true }
+zstd = { workspace = true }
