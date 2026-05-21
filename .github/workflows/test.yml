@@ -1,0 +1,70 @@
+# adpted from https://github.com/compio-rs/compio/blob/master/.github/workflows/ci_test.yml
+name: Test
+on:
+  merge_group:
+    types: [checks_requested]
+  push:
+    branches:
+      - master
+    paths:
+      - '**/*.rs'
+      - '**/Cargo.toml'
+      - '.github/workflows/test.yml'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - '**/*.rs'
+      - '**/Cargo.toml'
+      - '.github/workflows/test.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+env:
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+jobs:
+  test:
+    runs-on: ${{ matrix.setup.os }}
+    strategy:
+      matrix:
+        toolchain: ['stable']
+        setup:
+          - os: 'ubuntu-24.04'
+          - os: 'ubuntu-24.04-arm'
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Rust Toolchain
+        run: rustup toolchain install ${{ matrix.toolchain }}
+      - name: Setup target
+        if: ${{ matrix.setup.target }}
+        run: rustup +${{ matrix.toolchain }} target install ${{ matrix.setup.target }}
+      - uses: taiki-e/install-action@nextest
+      - name: Install musl
+        if: ${{ endsWith(matrix.setup.target, 'musl') }}
+        shell: bash
+        run: |
+          sudo apt-get -y install musl-dev musl-tools
+      - name: Test on ${{ matrix.setup.os }} ${{ matrix.toolchain }} ${{ matrix.setup.target }}
+        shell: bash
+        run: |
+          set -ex
+          ARGS=("--features" "all")
+          # Add feature "nightly" if toolchain is nightly
+          if [[ "${{ matrix.toolchain }}" == "nightly" ]]; then
+              ARGS+=("--features" "nightly")
+          fi
+          # Add features if features is not empty
+          if [[ -n "${{ matrix.setup.features }}" ]]; then
+              ARGS+=("--features" "${{ matrix.setup.features }}")
+          fi
+          # Add no-default-features if no_default_features is true
+          if [[ -n "${{ matrix.setup.no_default_features }}" ]]; then
+              ARGS+=("--no-default-features")
+          fi
+          # Specify target if target is not empty
+          if [[ -n "${{ matrix.setup.target }}" ]]; then
+              ARGS+=("--target" "${{ matrix.setup.target }}")
+          fi
+          cargo +${{ matrix.toolchain }} nextest run --profile ci "${ARGS[@]}"
+          cargo +${{ matrix.toolchain }} test --workspace --doc "${ARGS[@]}"
