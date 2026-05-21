@@ -66,5 +66,4 @@ jobs:
           if [[ -n "${{ matrix.setup.target }}" ]]; then
               ARGS+=("--target" "${{ matrix.setup.target }}")
           fi
-          cargo +${{ matrix.toolchain }} nextest run --profile ci "${ARGS[@]}"
-          cargo +${{ matrix.toolchain }} test --workspace --doc "${ARGS[@]}"
+          cargo +${{ matrix.toolchain }} test --workspace "${ARGS[@]}"
