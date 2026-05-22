@@ -14,7 +14,7 @@ fase-runtime = { path = "./fase-runtime" }
 bytes = { version = "1" }
 cel = { version = "0.13" }
 clap = { version = "4", features = ["derive"] }
-compio = { version = "0.19.0-rc.1", features = [
+compio = { version = "0.19.0-rc.2", features = [
   "io-uring",
   "polling",
   "io",

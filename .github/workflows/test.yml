@@ -28,7 +28,7 @@ jobs:
     runs-on: ${{ matrix.setup.os }}
     strategy:
       matrix:
-        toolchain: ['stable', '1.85', 'nightly']
+        toolchain: ['stable', 'nightly']
         setup:
           - os: 'ubuntu-24.04'
           - os: 'ubuntu-24.04-arm'
