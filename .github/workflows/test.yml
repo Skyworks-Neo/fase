@@ -54,10 +54,6 @@ jobs:
         run: |
           set -ex
           ARGS=()
-          # Add feature "nightly" if toolchain is nightly
-          if [[ "${{ matrix.toolchain }}" == "nightly" ]]; then
-              ARGS+=("--features" "nightly")
-          fi
           # Add features if features is not empty
           if [[ -n "${{ matrix.setup.features }}" ]]; then
               ARGS+=("--features" "${{ matrix.setup.features }}")
