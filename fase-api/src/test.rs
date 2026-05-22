@@ -129,6 +129,23 @@ fn label() {
     assert_eq!(first, other_pool.intern("name"));
     assert_ne!(first, other_pool.intern("version"));
 
+    use std::hash::{Hash, Hasher};
+    let digest = |label: &Label| {
+        let mut state = std::collections::hash_map::DefaultHasher::new();
+        label.hash(&mut state);
+        state.finish()
+    };
+    assert_eq!(digest(&first), digest(&other_pool.intern("name")));
+    assert_ne!(digest(&first), digest(&other_pool.intern("version")));
+    assert_eq!(
+        pool.intern("a").cmp(&other_pool.intern("a")),
+        std::cmp::Ordering::Equal
+    );
+    assert_eq!(
+        pool.intern("b").cmp(&other_pool.intern("a")),
+        std::cmp::Ordering::Greater
+    );
+
     let label = pool.intern("source-url");
     assert_eq!(serde_yml::to_string(&label).unwrap(), "source-url\n");
 }
