@@ -29,7 +29,7 @@ where
     K: HashContent,
     E: HashContent,
 {
-    fn hash_content(&self, state: &mut Sha512) {
+    fn hash_content(&self, state: &mut Sha256) {
         state.field("build");
         self.build.hash_content(state);
         state.field("steps");
@@ -61,7 +61,7 @@ where
     K: HashContent,
     E: HashContent,
 {
-    fn hash_content(&self, state: &mut Sha512) {
+    fn hash_content(&self, state: &mut Sha256) {
         state.field("id");
         self.id.hash_content(state);
         state.field("act");

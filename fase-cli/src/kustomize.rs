@@ -11,10 +11,10 @@ use serde::Deserialize;
 
 use fase_api::{Label, LabelMap, Resource};
 
-type CliResource = Resource<Label, String>;
+pub type CliResource = Resource<Label, String>;
 type Labels = Vec<LabelMap<Label>>;
-type Error = Box<dyn StdError>;
-type Result<T> = std::result::Result<T, Error>;
+pub type Error = Box<dyn StdError + Send + Sync>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 struct Frame {
     path: PathBuf,
@@ -98,8 +98,12 @@ impl Renderer {
     }
 }
 
+pub async fn collect(path: PathBuf) -> Result<Vec<CliResource>> {
+    Renderer::new(path).collect().await
+}
+
 pub async fn run(path: PathBuf) -> Result<()> {
-    let resources = Renderer::new(path).collect().await?;
+    let resources = collect(path).await?;
     let output = render(&resources)?;
 
     let mut stdout = stdout();

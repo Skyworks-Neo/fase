@@ -25,7 +25,7 @@ impl<K> HashContent for Kustomize<K>
 where
     K: HashContent,
 {
-    fn hash_content(&self, state: &mut Sha512) {
+    fn hash_content(&self, state: &mut Sha256) {
         state.field("resources");
         self.resources.hash_content(state);
         state.field("labels");

@@ -14,7 +14,8 @@ impl Transform for Zstd {
 
         let mut outputs = Vec::with_capacity(context.inputs().len());
         for input in context.inputs() {
-            outputs.push(compress(input.path(), context.output_dir(), context.zstd_level()).await?);
+            outputs
+                .push(compress(input.as_path(), context.output_dir(), context.zstd_level()).await?);
         }
 
         Ok(outputs)

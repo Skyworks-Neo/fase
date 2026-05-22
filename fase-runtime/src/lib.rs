@@ -2,4 +2,4 @@
 
 mod map;
 
-pub use map::{Artifact, Context, Error, Result, apply};
+pub use map::{Artifact, Context, Error, Input, Result, apply};

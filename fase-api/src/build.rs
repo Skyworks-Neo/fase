@@ -26,7 +26,7 @@ where
     K: HashContent,
     E: HashContent,
 {
-    fn hash_content(&self, state: &mut Sha512) {
+    fn hash_content(&self, state: &mut Sha256) {
         state.field("steps");
         self.steps.hash_content(state);
     }

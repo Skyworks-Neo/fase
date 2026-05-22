@@ -7,8 +7,5 @@ license = { workspace = true }
 
 [dependencies]
 compio = { workspace = true }
-cyper = { workspace = true }
 fase-api = { workspace = true }
-futures = { workspace = true }
-url = { workspace = true }
 zstd = { workspace = true }

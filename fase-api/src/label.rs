@@ -125,7 +125,7 @@ impl<'de> Deserialize<'de> for Label {
 }
 
 impl HashContent for Label {
-    fn hash_content(&self, state: &mut Sha512) {
+    fn hash_content(&self, state: &mut Sha256) {
         self.as_ref().hash_content(state);
     }
 }

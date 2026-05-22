@@ -13,7 +13,7 @@ pub struct Cmd {
 enum Commands {
     Build {
         #[arg(short, long)]
-        kustomize: String,
+        kustomize: PathBuf,
     },
     Kustomize {
         path: PathBuf,
@@ -21,9 +21,9 @@ enum Commands {
 }
 
 impl Cmd {
-    pub async fn run(self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn run(self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         match self.command {
-            Commands::Build { kustomize: _ } => Ok(()),
+            Commands::Build { kustomize } => build::run(kustomize).await,
             Commands::Kustomize { path } => kustomize::run(path).await,
         }
     }

@@ -40,7 +40,7 @@ where
     K: HashContent,
     E: HashContent,
 {
-    fn hash_content(&self, state: &mut Sha512) {
+    fn hash_content(&self, state: &mut Sha256) {
         state.field("inputs");
         self.inputs.hash_content(state);
         state.field("map");
@@ -76,7 +76,7 @@ where
     K: HashContent,
     E: HashContent,
 {
-    fn hash_content(&self, state: &mut Sha512) {
+    fn hash_content(&self, state: &mut Sha256) {
         state.field("id");
         self.id.hash_content(state);
         state.field("act");
@@ -98,7 +98,7 @@ impl<K> HashContent for ActRef<K>
 where
     K: HashContent,
 {
-    fn hash_content(&self, state: &mut Sha512) {
+    fn hash_content(&self, state: &mut Sha256) {
         self.0.hash_content(state);
     }
 }
@@ -109,20 +109,41 @@ where
 #[serde(tag = "typ")]
 /// An input source consumed by an act.
 pub enum Input<E> {
+    /// Read input from an environment variable.
+    Env { name: E },
+    /// Read input from a local file path expression.
+    File { path: E },
     /// Fetch input from an HTTP URL expression.
     Http { url: E },
+    /// Read input from a local directory path expression.
+    Dir { path: E },
 }
 
 impl<E> HashContent for Input<E>
 where
     E: HashContent,
 {
-    fn hash_content(&self, state: &mut Sha512) {
+    fn hash_content(&self, state: &mut Sha256) {
         match self {
+            Input::Env { name } => {
+                state.text("env");
+                state.field("name");
+                name.hash_content(state);
+            }
+            Input::File { path } => {
+                state.text("file");
+                state.field("path");
+                path.hash_content(state);
+            }
             Input::Http { url } => {
                 state.text("http");
                 state.field("url");
                 url.hash_content(state);
+            }
+            Input::Dir { path } => {
+                state.text("dir");
+                state.field("path");
+                path.hash_content(state);
             }
         }
     }
@@ -139,12 +160,10 @@ pub enum Map {
     Run,
     /// compress with zstd.
     Zstd,
-    /// fetch from HTTP endpoint
-    Http,
 }
 
 impl HashContent for Map {
-    fn hash_content(&self, state: &mut Sha512) {
+    fn hash_content(&self, state: &mut Sha256) {
         state.text(self.name());
     }
 }
@@ -155,7 +174,6 @@ impl Map {
             Map::Identity => "identity",
             Map::Run => "run",
             Map::Zstd => "zstd",
-            Map::Http => "http",
         }
     }
 }
@@ -167,7 +185,7 @@ impl Map {
 pub enum Output {}
 
 impl HashContent for Output {
-    fn hash_content(&self, _state: &mut Sha512) {
+    fn hash_content(&self, _state: &mut Sha256) {
         match *self {}
     }
 }

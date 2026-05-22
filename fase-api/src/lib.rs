@@ -12,7 +12,7 @@ mod sha;
 #[cfg(test)]
 mod test;
 
-pub use sha2::Sha512;
+pub use sha2::Sha256;
 
 pub use act::{Act, ActRef, Bindings, Input, Map, Matrix, Output, Step};
 pub use build::Build;

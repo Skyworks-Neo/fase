@@ -22,7 +22,7 @@ impl<K> HashContent for Install<K>
 where
     K: HashContent,
 {
-    fn hash_content(&self, state: &mut Sha512) {
+    fn hash_content(&self, state: &mut Sha256) {
         state.field("must");
         self.must.hash_content(state);
         state.field("prefer");

@@ -1,18 +1,18 @@
 use super::*;
 
 pub trait HashContent {
-    fn hash_content(&self, sha: &mut Sha512);
+    fn hash_content(&self, sha: &mut Sha256);
 }
 
 pub trait Sha {
-    fn sha512(&self) -> ShaSum;
+    fn sha256(&self) -> ShaSum;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ShaSum([u8; 64]);
+pub struct ShaSum([u8; 32]);
 
 impl ShaSum {
-    pub fn as_bytes(&self) -> &[u8; 64] {
+    pub fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
 }
@@ -26,8 +26,8 @@ pub enum ShaParseError {
 impl std::fmt::Display for ShaParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ShaParseError::Length => f.write_str("invalid sha512 sum: expected 128 hex digits"),
-            ShaParseError::Hex => f.write_str("invalid sha512 sum: invalid hex digit"),
+            ShaParseError::Length => f.write_str("invalid sha256 sum: expected 64 hex digits"),
+            ShaParseError::Hex => f.write_str("invalid sha256 sum: invalid hex digit"),
         }
     }
 }
@@ -47,11 +47,11 @@ impl std::str::FromStr for ShaSum {
     type Err = ShaParseError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        if value.len() != 128 {
+        if value.len() != 64 {
             return Err(ShaParseError::Length);
         }
 
-        let mut bytes = [0; 64];
+        let mut bytes = [0; 32];
         for (byte, pair) in bytes.iter_mut().zip(value.as_bytes().chunks_exact(2)) {
             *byte = hex(pair[0])? << 4 | hex(pair[1])?;
         }
@@ -98,7 +98,7 @@ pub(crate) trait HashWrite {
     }
 }
 
-impl HashWrite for Sha512 {
+impl HashWrite for Sha256 {
     fn bytes(&mut self, tag: &[u8], value: &[u8]) {
         self.update(tag);
         self.write_len(value.len());
@@ -115,14 +115,14 @@ where
     K: HashContent,
     E: HashContent,
 {
-    fn sha512(&self) -> ShaSum {
+    fn sha256(&self) -> ShaSum {
         match self {
-            Resource::Act(resource) => resource.sha512(),
-            Resource::Package(resource) => resource.sha512(),
-            Resource::Kustomize(resource) => resource.sha512(),
-            Resource::Install(resource) => resource.sha512(),
-            Resource::Build(resource) => resource.sha512(),
-            Resource::Realize(resource) => resource.sha512(),
+            Resource::Act(resource) => resource.sha256(),
+            Resource::Package(resource) => resource.sha256(),
+            Resource::Kustomize(resource) => resource.sha256(),
+            Resource::Install(resource) => resource.sha256(),
+            Resource::Build(resource) => resource.sha256(),
+            Resource::Realize(resource) => resource.sha256(),
         }
     }
 }
@@ -131,7 +131,7 @@ fn sha_resource<R>(resource: &R) -> ShaSum
 where
     R: ResourceKind + HashContent,
 {
-    let mut sha = Sha512::new();
+    let mut sha = Sha256::new();
     sha.field("apiVersion");
     sha.text(R::API_VERSION);
     sha.field("kind");
@@ -145,13 +145,13 @@ where
     K: HashContent,
     E: HashContent,
 {
-    fn sha512(&self) -> ShaSum {
+    fn sha256(&self) -> ShaSum {
         sha_resource(self)
     }
 }
 
 impl<K> Sha for Package<K> {
-    fn sha512(&self) -> ShaSum {
+    fn sha256(&self) -> ShaSum {
         sha_resource(self)
     }
 }
@@ -160,7 +160,7 @@ impl<K> Sha for Kustomize<K>
 where
     K: HashContent,
 {
-    fn sha512(&self) -> ShaSum {
+    fn sha256(&self) -> ShaSum {
         sha_resource(self)
     }
 }
@@ -169,7 +169,7 @@ impl<K> Sha for Install<K>
 where
     K: HashContent,
 {
-    fn sha512(&self) -> ShaSum {
+    fn sha256(&self) -> ShaSum {
         sha_resource(self)
     }
 }
@@ -179,7 +179,7 @@ where
     K: HashContent,
     E: HashContent,
 {
-    fn sha512(&self) -> ShaSum {
+    fn sha256(&self) -> ShaSum {
         sha_resource(self)
     }
 }
@@ -189,19 +189,19 @@ where
     K: HashContent,
     E: HashContent,
 {
-    fn sha512(&self) -> ShaSum {
+    fn sha256(&self) -> ShaSum {
         sha_resource(self)
     }
 }
 
 impl HashContent for str {
-    fn hash_content(&self, sha: &mut Sha512) {
+    fn hash_content(&self, sha: &mut Sha256) {
         sha.text(self);
     }
 }
 
 impl HashContent for String {
-    fn hash_content(&self, sha: &mut Sha512) {
+    fn hash_content(&self, sha: &mut Sha256) {
         self.as_str().hash_content(sha);
     }
 }
@@ -210,7 +210,7 @@ impl<T> HashContent for Box<T>
 where
     T: HashContent + ?Sized,
 {
-    fn hash_content(&self, sha: &mut Sha512) {
+    fn hash_content(&self, sha: &mut Sha256) {
         self.as_ref().hash_content(sha);
     }
 }
@@ -219,7 +219,7 @@ impl<T> HashContent for [T]
 where
     T: HashContent,
 {
-    fn hash_content(&self, sha: &mut Sha512) {
+    fn hash_content(&self, sha: &mut Sha256) {
         sha.write_len(self.len());
         for value in self {
             value.hash_content(sha);
@@ -231,13 +231,13 @@ impl<T> HashContent for Vec<T>
 where
     T: HashContent,
 {
-    fn hash_content(&self, sha: &mut Sha512) {
+    fn hash_content(&self, sha: &mut Sha256) {
         self.as_slice().hash_content(sha);
     }
 }
 
 impl HashContent for std::path::PathBuf {
-    fn hash_content(&self, sha: &mut Sha512) {
+    fn hash_content(&self, sha: &mut Sha256) {
         self.to_string_lossy().as_ref().hash_content(sha);
     }
 }
@@ -247,7 +247,7 @@ where
     K: HashContent,
     V: HashContent,
 {
-    fn hash_content(&self, sha: &mut Sha512) {
+    fn hash_content(&self, sha: &mut Sha256) {
         sha.write_len(self.len());
         for (key, value) in self {
             key.hash_content(sha);
@@ -257,8 +257,8 @@ where
 }
 
 impl HashContent for ShaSum {
-    fn hash_content(&self, sha: &mut Sha512) {
-        sha.bytes(b"sha512", self.as_bytes());
+    fn hash_content(&self, sha: &mut Sha256) {
+        sha.bytes(b"sha256", self.as_bytes());
     }
 }
 
@@ -266,7 +266,7 @@ impl<K> HashContent for LabelMap<K>
 where
     K: HashContent,
 {
-    fn hash_content(&self, sha: &mut Sha512) {
+    fn hash_content(&self, sha: &mut Sha256) {
         sha.write_len(self.len());
         for (key, value) in self.iter() {
             key.hash_content(sha);
