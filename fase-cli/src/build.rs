@@ -2,11 +2,13 @@ use super::*;
 
 use std::{collections::BTreeMap, env, error::Error as StdError, fs, io};
 
+use compio::{BufResult, fs::File, io::AsyncWriteAtExt};
 use cyper::Client;
 use fase_api::{
     Act, ActRef, Build as ApiBuild, Input as ApiInput, Label, LabelMap, Resource, Sha, Step,
 };
 use fase_runtime::{Artifact, Context, Evaluator, Input as RuntimeInput, Runtime};
+use futures_util::StreamExt;
 use url::Url;
 
 type Error = Box<dyn StdError + Send + Sync>;
@@ -143,7 +145,7 @@ async fn acquire_input(
             }
 
             let output = dir.join(url_name(&final_url));
-            fs::write(&output, response.bytes().await?)?;
+            download(response, &output).await?;
             Ok(Artifact::from(output))
         }
         ApiInput::Dir { path } => {
@@ -154,6 +156,22 @@ async fn acquire_input(
             Ok(Artifact::from(output))
         }
     }
+}
+
+async fn download(response: cyper::Response, output: &Path) -> Result<()> {
+    let mut file = File::create(output).await?;
+    let mut stream = response.bytes_stream();
+    let mut offset = 0;
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        let len = chunk.len() as u64;
+        let BufResult(result, _) = file.write_all_at(chunk, offset).await;
+        result?;
+        offset += len;
+    }
+
+    Ok(())
 }
 
 fn acts(resources: &[kustomize::CliResource]) -> Vec<&CliAct> {

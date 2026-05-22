@@ -8,9 +8,10 @@ license = { workspace = true }
 [dependencies]
 clap = { workspace = true }
 compio = { workspace = true }
-cyper = { workspace = true }
+cyper = { workspace = true, features = ["stream"] }
 fase-api = { workspace = true }
 fase-runtime = { workspace = true }
+futures-util = { workspace = true }
 serde = { workspace = true }
 serde_yml = { workspace = true }
 url = { workspace = true }

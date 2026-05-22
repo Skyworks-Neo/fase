@@ -1,8 +1,4 @@
-use compio::{
-    BufResult,
-    fs::{self, create_dir_all},
-    runtime::spawn_blocking,
-};
+use compio::{fs::create_dir_all, runtime::spawn_blocking};
 
 use super::*;
 
@@ -25,12 +21,16 @@ impl Transform for Zstd {
 async fn compress(input: &Path, output_dir: &Path, level: i32) -> Result<Artifact> {
     let output = zstd_path(input, output_dir)?;
 
-    let input = fs::read(input).await?;
-    let compressed = spawn_blocking(move || ::zstd::bulk::compress(&input, level))
-        .await
-        .map_err(|error| std::io::Error::other(format!("zstd task failed: {error:?}")))??;
-    let BufResult(result, _) = fs::write(&output, compressed).await;
-    result?;
+    let input = input.to_owned();
+    let destination = output.clone();
+    spawn_blocking(move || {
+        let input = std::fs::File::open(input)?;
+        let output = std::fs::File::create(destination)?;
+        // external crate
+        ::zstd::stream::copy_encode(input, output, level)
+    })
+    .await
+    .map_err(|error| std::io::Error::other(format!("zstd task failed: {error:?}")))??;
 
     Ok(Artifact::from(output))
 }
