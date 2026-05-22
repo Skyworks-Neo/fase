@@ -27,21 +27,7 @@ pub enum Output {
 struct Frame {
     path: PathBuf,
     labels: Labels,
-}
-
-impl Frame {
-    fn new(path: PathBuf) -> Self {
-        Self {
-            path,
-            labels: Vec::new(),
-        }
-    }
-
-    fn scoped(&self, labels: Labels) -> Labels {
-        let mut scope = self.labels.clone();
-        scope.extend(labels);
-        scope
-    }
+    ancestors: Vec<PathBuf>,
 }
 
 enum Work {
@@ -61,7 +47,11 @@ impl Renderer {
     fn new(runtime: &Runtime, path: PathBuf) -> Self {
         Self {
             runtime: runtime.clone(),
-            work: vec![Work::Path(Frame::new(path))],
+            work: vec![Work::Path(Frame {
+                path,
+                labels: Vec::new(),
+                ancestors: Vec::new(),
+            })],
         }
     }
 
@@ -71,7 +61,28 @@ impl Renderer {
         while let Some(item) = self.work.pop() {
             match item {
                 Work::Path(frame) => {
-                    let path = manifest(&frame.path).await?;
+                    let Frame {
+                        path,
+                        labels,
+                        ancestors,
+                    } = frame;
+                    let path = manifest(&path).await?;
+                    let key = std::fs::canonicalize(&path)?;
+                    if let Some(start) = ancestors.iter().position(|parent| parent == &key) {
+                        let cycle = ancestors[start..]
+                            .iter()
+                            .chain(std::iter::once(&key))
+                            .map(|path| path.display().to_string())
+                            .collect::<Vec<_>>()
+                            .join(" -> ");
+                        return Err(Box::new(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!("recursive kustomize resources: {cycle}"),
+                        )));
+                    }
+
+                    let mut ancestors = ancestors;
+                    ancestors.push(key);
                     let base = path.parent().unwrap_or_else(|| Path::new("."));
                     let contents = read_utf8(&path).await?;
                     let resources = parse(&path, &contents)?;
@@ -79,17 +90,19 @@ impl Renderer {
                         let resource = self.runtime.intern(resource);
                         match resource {
                             Resource::Kustomize(kustomize) => {
-                                let labels = frame.scoped(kustomize.labels);
+                                let mut labels = labels.clone();
+                                labels.extend(kustomize.labels);
                                 for path in kustomize.resources.into_iter().rev() {
                                     self.work.push(Work::Path(Frame {
                                         path: base.join(path),
                                         labels: labels.clone(),
+                                        ancestors: ancestors.clone(),
                                     }));
                                 }
                             }
                             resource => self.work.push(Work::Resource {
                                 resource,
-                                labels: frame.labels.clone(),
+                                labels: labels.clone(),
                             }),
                         }
                     }
@@ -197,4 +210,32 @@ fn render(resources: &[CliResource]) -> Result<String> {
         output.push_str(&serde_yml::to_string(resource)?);
     }
     Ok(output)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[compio::test]
+    async fn recursive_kustomize() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("fase-cli-kustomize-cycle-{nonce}"));
+        let a = root.join("a");
+        let b = root.join("b");
+        std::fs::create_dir_all(&a).unwrap();
+        std::fs::create_dir_all(&b).unwrap();
+        std::fs::write(a.join("kustomize.yaml"), "resources:\n  - ../b\n").unwrap();
+        std::fs::write(b.join("kustomize.yaml"), "resources:\n  - ../a\n").unwrap();
+
+        let error = collect(&Runtime::new(), a).await.unwrap_err();
+        assert!(
+            error.to_string().contains("recursive kustomize resources"),
+            "{error}"
+        );
+
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }
