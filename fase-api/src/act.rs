@@ -139,6 +139,8 @@ pub enum Map {
     Run,
     /// compress with zstd.
     Zstd,
+    /// fetch from HTTP endpoint
+    Http,
 }
 
 impl HashContent for Map {
@@ -153,6 +155,7 @@ impl Map {
             Map::Identity => "identity",
             Map::Run => "run",
             Map::Zstd => "zstd",
+            Map::Http => "http",
         }
     }
 }

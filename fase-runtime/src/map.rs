@@ -1,3 +1,4 @@
+mod http;
 mod zstd;
 
 use std::path::{Path, PathBuf};
@@ -90,6 +91,7 @@ impl Execute for Map {
     async fn execute(self, context: Context) -> Result<Vec<Artifact>> {
         match self {
             Map::Identity => Identity.run(context).await,
+            Map::Http => http::Http.run(context).await,
             Map::Zstd => zstd::Zstd.run(context).await,
             Map::Run => Err(Box::new(std::io::Error::other(
                 "run map is not implemented",
@@ -105,6 +107,11 @@ pub async fn apply(map: Map, context: Context) -> Result<Vec<Artifact>> {
 #[cfg(test)]
 mod test {
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    use compio::{
+        io::{AsyncRead, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     use super::*;
 
@@ -136,6 +143,47 @@ mod test {
         let compressed = std::fs::read(outputs[0].path()).unwrap();
         let decompressed = ::zstd::bulk::decompress(&compressed, 1024).unwrap();
         assert_eq!(decompressed, content);
+
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[compio::test]
+    async fn http() {
+        let body = b"hello from http";
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let l = listener.clone();
+        let address = listener.local_addr().unwrap();
+        let server = compio::runtime::spawn(async move {
+            let (mut stream, _) = l.accept().await.unwrap();
+            let request = [0; 1024];
+            stream.read(request).await.unwrap();
+            let mut response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            )
+            .into_bytes();
+            response.extend_from_slice(body);
+            stream.write_all(response).await.unwrap();
+        });
+
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("fase-runtime-http-{nonce}"));
+        let output_dir = root.join("output");
+        let url = PathBuf::from(format!("http://{address}/source.tar.gz"));
+
+        let outputs = apply(
+            Map::Http,
+            Context::new([Artifact::from(url.as_path())], &output_dir),
+        );
+
+        let (apply_outputs, _) = futures::join!(outputs, server);
+        let outputs = apply_outputs.unwrap();
+        assert_eq!(outputs.len(), 1);
+        assert_eq!(outputs[0].path(), output_dir.join("source.tar.gz"));
+        assert_eq!(std::fs::read(outputs[0].path()).unwrap(), body);
 
         std::fs::remove_dir_all(root).unwrap();
     }
