@@ -6,6 +6,7 @@ edition = { workspace = true }
 license = { workspace = true }
 
 [dependencies]
+cel = { workspace = true }
 compio = { workspace = true }
 fase-api = { workspace = true }
 zstd = { workspace = true }

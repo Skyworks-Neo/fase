@@ -31,13 +31,46 @@ use std::collections::BTreeMap;
 
 use sha::HashWrite;
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(bound(deserialize = "K: Ord + Deserialize<'de>", serialize = "K: Serialize"))]
-#[serde(transparent)]
+/// The stable type identity of a Fase API resource.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ApiResource {
+    /// API version used in serialized resource documents.
+    pub api_version: &'static str,
+    /// Resource kind used in serialized resource documents.
+    pub kind: &'static str,
+}
+
+impl<R> From<&R> for ApiResource
+where
+    R: ResourceKind,
+{
+    fn from(_: &R) -> Self {
+        Self {
+            api_version: R::API_VERSION,
+            kind: R::KIND,
+        }
+    }
+}
+
+trait ResourceKind {
+    const API_VERSION: &'static str = "v1alpha1";
+    const KIND: &'static str;
+
+    fn matches(kind: &str, api_version: &str) -> bool {
+        kind == Self::KIND && api_version == Self::API_VERSION
+    }
+}
+
 /// Labels attached to resources or used as selectors.
 ///
 /// `LabelMap` keeps keys sorted so serialization-independent operations such as
 /// hashing see a stable order.
+///
+/// `K` is the label key and label value representation. Raw YAML can use an
+/// owned string type, while the CLI uses [`Label`] to intern repeated names.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(bound(deserialize = "K: Ord + Deserialize<'de>", serialize = "K: Serialize"))]
+#[serde(transparent)]
 pub struct LabelMap<K> {
     inner: BTreeMap<K, K>,
 }
@@ -69,20 +102,20 @@ where
     }
 }
 
-trait ResourceKind {
-    const API_VERSION: &'static str = "v1alpha1";
-    const KIND: &'static str;
-
-    fn matches(kind: &str, api_version: &str) -> bool {
-        kind == Self::KIND && api_version == Self::API_VERSION
-    }
-}
-
-#[derive(Debug, Clone)]
 /// Any supported Fase resource.
 ///
 /// This enum is the format-dispatch type used when deserializing documents with
 /// `apiVersion` and `kind` headers.
+///
+/// `K` is the identifier type used for resource labels, selectors, matrix keys,
+/// step IDs, and dependency names. Use a string-like type when preserving raw
+/// documents, or [`Label`] when repeated names should be interned.
+///
+/// `E` is the expression/value type used in places that may be expanded at build
+/// time, such as input paths, URLs, environment variable names, and step
+/// bindings. Keeping it separate from `K` lets callers choose compact labels
+/// while still storing expressions as ordinary strings.
+#[derive(Debug, Clone)]
 pub enum Resource<K, E> {
     /// A reusable build action.
     Act(Act<K, E>),
@@ -96,6 +129,19 @@ pub enum Resource<K, E> {
     Build(Build<K, E>),
     /// Concrete build graph produced from a `Build`.
     Realize(Realize<K, E>),
+}
+
+impl<K, E> From<&Resource<K, E>> for ApiResource {
+    fn from(resource: &Resource<K, E>) -> Self {
+        match resource {
+            Resource::Act(resource) => resource.into(),
+            Resource::Package(resource) => resource.into(),
+            Resource::Kustomize(resource) => resource.into(),
+            Resource::Install(resource) => resource.into(),
+            Resource::Build(resource) => resource.into(),
+            Resource::Realize(resource) => resource.into(),
+        }
+    }
 }
 
 impl<K, E> Resource<K, E> {

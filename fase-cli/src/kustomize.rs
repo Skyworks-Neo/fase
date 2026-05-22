@@ -1,6 +1,6 @@
 use super::*;
 
-use std::{error::Error as StdError, io};
+use std::{collections::BTreeMap, error::Error as StdError, io};
 
 use compio::{
     BufResult,
@@ -9,12 +9,18 @@ use compio::{
 };
 use serde::Deserialize;
 
-use fase_api::{Label, LabelMap, Resource};
+use fase_api::{ApiResource, Label, LabelMap, Resource};
 
 pub type CliResource = Resource<Label, String>;
 type Labels = Vec<LabelMap<Label>>;
 pub type Error = Box<dyn StdError + Send + Sync>;
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub enum Output {
+    Count,
+    Yaml,
+}
 
 struct Frame {
     path: PathBuf,
@@ -102,9 +108,12 @@ pub async fn collect(path: PathBuf) -> Result<Vec<CliResource>> {
     Renderer::new(path).collect().await
 }
 
-pub async fn run(path: PathBuf) -> Result<()> {
+pub async fn run(path: PathBuf, output: Output) -> Result<()> {
     let resources = collect(path).await?;
-    let output = render(&resources)?;
+    let output = match output {
+        Output::Count => count(&resources),
+        Output::Yaml => render(&resources)?,
+    };
 
     let mut stdout = stdout();
     let BufResult(result, _) = stdout.write_all(output.into_bytes()).await;
@@ -155,6 +164,23 @@ fn parse_error(path: &Path, error: serde_yml::Error) -> io::Error {
         io::ErrorKind::InvalidData,
         format!("failed to parse {}: {error}", path.display()),
     )
+}
+
+fn count(resources: &[CliResource]) -> String {
+    let mut counts = BTreeMap::<ApiResource, usize>::new();
+
+    for resource in resources {
+        *counts.entry(resource.into()).or_default() += 1;
+    }
+
+    let mut output = "apiVersion\tkind\tcount\n".to_owned();
+    for (resource, count) in counts {
+        output.push_str(&format!(
+            "{}\t{}\t{}\n",
+            resource.api_version, resource.kind, count
+        ));
+    }
+    output
 }
 
 fn render(resources: &[CliResource]) -> Result<String> {

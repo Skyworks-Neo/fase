@@ -6,7 +6,7 @@ use cyper::Client;
 use fase_api::{
     Act, ActRef, Build as ApiBuild, Input as ApiInput, Label, LabelMap, Resource, Sha, Step,
 };
-use fase_runtime::{Artifact, Context, Input as RuntimeInput, apply};
+use fase_runtime::{Artifact, Context, Evaluator, Input as RuntimeInput, apply};
 use url::Url;
 
 type Error = Box<dyn StdError + Send + Sync>;
@@ -68,9 +68,9 @@ async fn execute_step(
     let base = root.join(segment(step.id.as_ref()));
 
     for (index, matrix) in matrix(act.matrix.iter()).into_iter().enumerate() {
-        let vars = bindings(step.with.iter(), matrix);
+        let evaluator = Evaluator::with(bindings(step.with.iter(), matrix));
         let case = base.join(index.to_string());
-        let sources = acquire_inputs(act, &vars, &case.join("inputs"), done, step).await?;
+        let sources = acquire_inputs(act, &evaluator, &case.join("inputs"), done, step).await?;
         let inputs = sources
             .iter()
             .map(|artifact| RuntimeInput::path(artifact.path()))
@@ -83,7 +83,7 @@ async fn execute_step(
 
 async fn acquire_inputs(
     act: &CliAct,
-    vars: &BTreeMap<String, String>,
+    evaluator: &Evaluator,
     dir: &Path,
     done: &BTreeMap<String, Vec<Artifact>>,
     step: &CliStep,
@@ -99,35 +99,35 @@ async fn acquire_inputs(
 
     let mut artifacts = Vec::with_capacity(act.inputs.len());
     for input in &act.inputs {
-        artifacts.push(acquire_input(input, vars, dir).await?);
+        artifacts.push(acquire_input(input, evaluator, dir).await?);
     }
     Ok(artifacts)
 }
 
 async fn acquire_input(
     input: &ApiInput<String>,
-    vars: &BTreeMap<String, String>,
+    evaluator: &Evaluator,
     dir: &Path,
 ) -> Result<Artifact> {
     fs::create_dir_all(dir)?;
 
     match input {
         ApiInput::Env { name } => {
-            let name = expand(name, vars)?;
+            let name = evaluator.render(name)?;
             let value = env::var(&name)?;
             let output = dir.join(segment(&name));
             fs::write(&output, value)?;
             Ok(Artifact::from(output))
         }
         ApiInput::File { path } => {
-            let path = expand(path, vars)?;
+            let path = evaluator.render(path)?;
             let input = Path::new(&path);
             let output = dir.join(file_name(input)?);
             fs::copy(input, &output)?;
             Ok(Artifact::from(output))
         }
         ApiInput::Http { url } => {
-            let url = expand(url, vars)?;
+            let url = evaluator.render(url)?;
             let client = Client::new()?;
             let response = client.get(&url)?.send().await?;
             let status = response.status();
@@ -141,7 +141,7 @@ async fn acquire_input(
             Ok(Artifact::from(output))
         }
         ApiInput::Dir { path } => {
-            let path = expand(path, vars)?;
+            let path = evaluator.render(path)?;
             let input = Path::new(&path);
             let output = dir.join(file_name(input)?);
             copy_dir(input, &output)?;
@@ -230,28 +230,6 @@ fn matrix<'a>(
         cases = next;
     }
     cases
-}
-
-fn expand(value: &str, vars: &BTreeMap<String, String>) -> Result<String> {
-    let mut output = String::new();
-    let mut rest = value;
-
-    while let Some(start) = rest.find("${") {
-        output.push_str(&rest[..start]);
-        let after = &rest[start + 2..];
-        let Some(end) = after.find('}') else {
-            return Err(error(format!("unclosed expression in {value}")));
-        };
-        let name = &after[..end];
-        let Some(value) = vars.get(name) else {
-            return Err(error(format!("missing binding for {name}")));
-        };
-        output.push_str(value);
-        rest = &after[end + 1..];
-    }
-
-    output.push_str(rest);
-    Ok(output)
 }
 
 fn build_root(build: &CliBuild) -> Result<PathBuf> {
