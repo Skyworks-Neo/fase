@@ -87,6 +87,24 @@ impl<K> LabelMap<K> {
     pub fn iter(&self) -> impl Iterator<Item = (&K, &K)> {
         self.inner.iter()
     }
+
+    pub fn map<T, F>(self, mut f: F) -> LabelMap<T>
+    where
+        T: Ord,
+        F: FnMut(K) -> T,
+    {
+        LabelMap {
+            inner: self
+                .inner
+                .into_iter()
+                .map(|(key, value)| {
+                    let key = f(key);
+                    let value = f(value);
+                    (key, value)
+                })
+                .collect(),
+        }
+    }
 }
 
 impl<K> LabelMap<K>
@@ -145,6 +163,89 @@ impl<K, E> From<&Resource<K, E>> for ApiResource {
 }
 
 impl<K, E> Resource<K, E> {
+    /// Convert the resource key type while leaving expression values unchanged.
+    pub fn map<T, F>(self, mut f: F) -> Resource<T, E>
+    where
+        T: Ord,
+        F: FnMut(K) -> T,
+    {
+        match self {
+            Resource::Act(resource) => Resource::Act(Act {
+                labels: resource.labels.map(&mut f),
+                inputs: resource.inputs,
+                map: resource.map,
+                matrix: resource
+                    .matrix
+                    .into_iter()
+                    .map(|(key, values)| {
+                        let key = f(key);
+                        let values = values.into_iter().map(&mut f).collect();
+                        (key, values)
+                    })
+                    .collect(),
+                outputs: resource.outputs,
+            }),
+            Resource::Package(resource) => Resource::Package(Package {
+                labels: resource.labels.map(&mut f),
+            }),
+            Resource::Kustomize(resource) => Resource::Kustomize(Kustomize {
+                resources: resource.resources,
+                labels: resource
+                    .labels
+                    .into_iter()
+                    .map(|labels| labels.map(&mut f))
+                    .collect(),
+            }),
+            Resource::Install(resource) => Resource::Install(Install {
+                must: resource
+                    .must
+                    .into_iter()
+                    .map(|labels| labels.map(&mut f))
+                    .collect(),
+                prefer: resource
+                    .prefer
+                    .into_iter()
+                    .map(|labels| labels.map(&mut f))
+                    .collect(),
+            }),
+            Resource::Build(resource) => Resource::Build(Build {
+                labels: resource.labels.map(&mut f),
+                steps: resource
+                    .steps
+                    .into_iter()
+                    .map(|step| Step {
+                        id: f(step.id),
+                        act: ActRef(step.act.0.map(&mut f)),
+                        with: step
+                            .with
+                            .into_iter()
+                            .map(|(key, value)| (f(key), value))
+                            .collect(),
+                        needs: step.needs.into_iter().map(&mut f).collect(),
+                    })
+                    .collect(),
+            }),
+            Resource::Realize(resource) => Resource::Realize(Realize {
+                labels: resource.labels.map(&mut f),
+                build: resource.build,
+                steps: resource
+                    .steps
+                    .into_iter()
+                    .map(|step| RealizeStep {
+                        id: f(step.id),
+                        act: step.act,
+                        with: step
+                            .with
+                            .into_iter()
+                            .map(|(key, value)| (f(key), value))
+                            .collect(),
+                        needs: step.needs.into_iter().map(&mut f).collect(),
+                    })
+                    .collect(),
+            }),
+        }
+    }
+
     pub fn labels_mut(&mut self) -> Option<&mut LabelMap<K>> {
         match self {
             Resource::Act(resource) => Some(&mut resource.labels),

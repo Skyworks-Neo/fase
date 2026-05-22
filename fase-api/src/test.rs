@@ -113,8 +113,7 @@ fn realize() {
 
 #[test]
 fn label() {
-    use std::sync::Arc;
-    let pool = LabelPool::shared();
+    let pool = LabelPool::new();
     let first = pool.intern("name");
     let second = pool.intern("name");
     let other = pool.intern("version");
@@ -122,12 +121,14 @@ fn label() {
     assert_ne!(first.id(), other.id());
     assert_eq!(first.as_ref(), "name");
 
-    let pool = LabelPool::shared();
     let label = pool.intern("old");
     let overridden = label.override_value("new");
     assert_eq!(overridden.as_ref(), "new");
-    assert!(Arc::ptr_eq(label.pool(), overridden.pool()));
 
-    let label = Label::intern("source-url");
+    let other_pool = LabelPool::new();
+    assert_eq!(first, other_pool.intern("name"));
+    assert_ne!(first, other_pool.intern("version"));
+
+    let label = pool.intern("source-url");
     assert_eq!(serde_yml::to_string(&label).unwrap(), "source-url\n");
 }

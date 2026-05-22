@@ -1,37 +1,30 @@
 use super::*;
 
 use lasso::{Spur, ThreadedRodeo};
-use serde::{Deserializer, Serializer};
+use serde::Serializer;
 use std::{
     cmp::Ordering,
     hash::{Hash, Hasher},
-    sync::{Arc, OnceLock},
+    sync::Arc,
 };
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone)]
 pub struct LabelPool {
-    inner: ThreadedRodeo<Spur>,
+    inner: Arc<ThreadedRodeo<Spur>>,
 }
 
 impl LabelPool {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            inner: Arc::new(ThreadedRodeo::new()),
+        }
     }
 
-    pub fn shared() -> Arc<Self> {
-        Arc::new(Self::new())
-    }
-
-    pub fn global() -> Arc<Self> {
-        static GLOBAL: OnceLock<Arc<LabelPool>> = OnceLock::new();
-        Arc::clone(GLOBAL.get_or_init(Self::shared))
-    }
-
-    pub fn intern(self: &Arc<Self>, value: &str) -> Label {
+    pub fn intern(&self, value: &str) -> Label {
         let key = self.inner.get_or_intern(value);
         Label {
             id: key,
-            pool: Arc::clone(self),
+            pool: self.clone(),
         }
     }
 
@@ -40,47 +33,41 @@ impl LabelPool {
     }
 }
 
+impl Default for LabelPool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Label {
     id: Spur,
-    pool: Arc<LabelPool>,
+    pool: LabelPool,
 }
 
 impl Label {
-    pub fn intern(value: &str) -> Self {
-        LabelPool::global().intern(value)
-    }
-
     pub fn id(&self) -> Spur {
         self.id
     }
 
-    pub fn pool(&self) -> &Arc<LabelPool> {
+    pub fn pool(&self) -> &LabelPool {
         &self.pool
     }
 
     pub fn override_value(&self, value: &str) -> Self {
         self.pool.intern(value)
     }
-
-    fn assert_same_pool(&self, other: &Self) {
-        debug_assert!(
-            Arc::ptr_eq(&self.pool, &other.pool),
-            "labels from different pools cannot be compared by id"
-        );
-    }
 }
 
 impl AsRef<str> for Label {
     fn as_ref(&self) -> &str {
-        self.pool.resolve(self.id)
+        self.pool().resolve(self.id)
     }
 }
 
 impl PartialEq for Label {
     fn eq(&self, other: &Self) -> bool {
-        self.assert_same_pool(other);
-        self.id == other.id
+        self.as_ref() == other.as_ref()
     }
 }
 
@@ -94,14 +81,13 @@ impl PartialOrd for Label {
 
 impl Ord for Label {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.assert_same_pool(other);
-        self.id.cmp(&other.id)
+        self.as_ref().cmp(other.as_ref())
     }
 }
 
 impl Hash for Label {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
+        self.as_ref().hash(state);
     }
 }
 
@@ -111,16 +97,6 @@ impl Serialize for Label {
         S: Serializer,
     {
         serializer.serialize_str(self.as_ref())
-    }
-}
-
-impl<'de> Deserialize<'de> for Label {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = <Box<str>>::deserialize(deserializer)?;
-        Ok(Self::intern(&value))
     }
 }
 

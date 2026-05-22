@@ -6,7 +6,7 @@ use cyper::Client;
 use fase_api::{
     Act, ActRef, Build as ApiBuild, Input as ApiInput, Label, LabelMap, Resource, Sha, Step,
 };
-use fase_runtime::{Artifact, Context, Evaluator, Input as RuntimeInput, apply};
+use fase_runtime::{Artifact, Context, Evaluator, Input as RuntimeInput, Runtime};
 use url::Url;
 
 type Error = Box<dyn StdError + Send + Sync>;
@@ -15,8 +15,8 @@ type CliAct = Act<Label, String>;
 type CliBuild = ApiBuild<Label, String>;
 type CliStep = Step<Label, String>;
 
-pub async fn run(path: PathBuf) -> Result<()> {
-    let resources = kustomize::collect(path).await?;
+pub async fn run(runtime: &Runtime, path: PathBuf) -> Result<()> {
+    let resources = kustomize::collect(runtime, path).await?;
     let acts = acts(&resources);
     let builds = builds(&resources);
 
@@ -26,7 +26,7 @@ pub async fn run(path: PathBuf) -> Result<()> {
 
     for build in builds {
         let root = build_root(build)?;
-        let outputs = execute(build, &acts, &root).await?;
+        let outputs = execute(runtime, build, &acts, &root).await?;
         for (step, artifacts) in outputs {
             for artifact in artifacts {
                 println!("{step}\t{}", artifact.path().display());
@@ -38,6 +38,7 @@ pub async fn run(path: PathBuf) -> Result<()> {
 }
 
 async fn execute(
+    runtime: &Runtime,
     build: &CliBuild,
     acts: &[&CliAct],
     root: &Path,
@@ -51,7 +52,7 @@ async fn execute(
         };
         let step = pending.remove(index);
         let act = select_act(acts, &step.act)?;
-        let outputs = execute_step(step, act, root, &done).await?;
+        let outputs = execute_step(runtime, step, act, root, &done).await?;
         done.insert(step.id.as_ref().to_owned(), outputs);
     }
 
@@ -59,6 +60,7 @@ async fn execute(
 }
 
 async fn execute_step(
+    runtime: &Runtime,
     step: &CliStep,
     act: &CliAct,
     root: &Path,
@@ -68,14 +70,18 @@ async fn execute_step(
     let base = root.join(segment(step.id.as_ref()));
 
     for (index, matrix) in matrix(act.matrix.iter()).into_iter().enumerate() {
-        let evaluator = Evaluator::with(bindings(step.with.iter(), matrix));
+        let evaluator = runtime.evaluator_with(bindings(step.with.iter(), matrix));
         let case = base.join(index.to_string());
         let sources = acquire_inputs(act, &evaluator, &case.join("inputs"), done, step).await?;
         let inputs = sources
             .iter()
             .map(|artifact| RuntimeInput::path(artifact.path()))
             .collect::<Vec<_>>();
-        outputs.extend(apply(act.map.clone(), Context::new(inputs, case.join("outputs"))).await?);
+        outputs.extend(
+            runtime
+                .apply(act.map.clone(), Context::new(inputs, case.join("outputs")))
+                .await?,
+        );
     }
 
     Ok(outputs)

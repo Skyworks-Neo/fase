@@ -10,8 +10,10 @@ use compio::{
 use serde::Deserialize;
 
 use fase_api::{ApiResource, Label, LabelMap, Resource};
+use fase_runtime::Runtime;
 
 pub type CliResource = Resource<Label, String>;
+type RawResource = Resource<String, String>;
 type Labels = Vec<LabelMap<Label>>;
 pub type Error = Box<dyn StdError + Send + Sync>;
 pub type Result<T> = std::result::Result<T, Error>;
@@ -51,12 +53,14 @@ enum Work {
 }
 
 struct Renderer {
+    runtime: Runtime,
     work: Vec<Work>,
 }
 
 impl Renderer {
-    fn new(path: PathBuf) -> Self {
+    fn new(runtime: &Runtime, path: PathBuf) -> Self {
         Self {
+            runtime: runtime.clone(),
             work: vec![Work::Path(Frame::new(path))],
         }
     }
@@ -72,6 +76,7 @@ impl Renderer {
                     let contents = read_utf8(&path).await?;
                     let resources = parse(&path, &contents)?;
                     for resource in resources.into_iter().rev() {
+                        let resource = self.runtime.intern(resource);
                         match resource {
                             Resource::Kustomize(kustomize) => {
                                 let labels = frame.scoped(kustomize.labels);
@@ -104,12 +109,12 @@ impl Renderer {
     }
 }
 
-pub async fn collect(path: PathBuf) -> Result<Vec<CliResource>> {
-    Renderer::new(path).collect().await
+pub async fn collect(runtime: &Runtime, path: PathBuf) -> Result<Vec<CliResource>> {
+    Renderer::new(runtime, path).collect().await
 }
 
-pub async fn run(path: PathBuf, output: Output) -> Result<()> {
-    let resources = collect(path).await?;
+pub async fn run(runtime: &Runtime, path: PathBuf, output: Output) -> Result<()> {
+    let resources = collect(runtime, path).await?;
     let output = match output {
         Output::Count => count(&resources),
         Output::Yaml => render(&resources)?,
@@ -147,10 +152,10 @@ async fn read_utf8(path: &Path) -> Result<String> {
     Ok(String::from_utf8(fs::read(path).await?)?)
 }
 
-fn parse(path: &Path, contents: &str) -> Result<Vec<CliResource>> {
+fn parse(path: &Path, contents: &str) -> Result<Vec<RawResource>> {
     let mut resources = Vec::new();
     for document in serde_yml::Deserializer::from_str(contents) {
-        let resource = Option::<CliResource>::deserialize(document)
+        let resource = Option::<RawResource>::deserialize(document)
             .map_err(|error| parse_error(path, error))?;
         if let Some(resource) = resource {
             resources.push(resource);
