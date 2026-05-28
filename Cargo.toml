@@ -31,7 +31,7 @@ lasso = { version = "0.7", features = ["multi-threaded"] }
 regex = { version = "1" }
 serde = { version = "1", features = ["derive"] }
 serde-value = { version = "0.7" }
-serde_yml = { version = "0.0.12" }
+serde_yml = { version = "0.0.13" }
 sha2 = { version = "0.11" }
 url = { version = "2", features = ["serde"] }
 zstd = { version = "0.13" }
