@@ -12,7 +12,7 @@ fase-cli = { path = "./fase-cli" }
 fase-runtime = { path = "./fase-runtime" }
 
 bytes = { version = "1" }
-cel = { version = "0.13" }
+cel = { version = "0.14" }
 clap = { version = "4", features = ["derive"] }
 compio = { version = "0.19.0-rc.2", features = [
   "bytes",
