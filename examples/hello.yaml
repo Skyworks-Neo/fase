@@ -1,4 +1,4 @@
-apiVersion: fase.io/v1alpha1
+apiVersion: skyw.top/v1alpha1
 kind: Step
 metadata:
   name: make-source
@@ -17,7 +17,7 @@ spec:
     mkdir -p "$FASE_OUTPUT_ROOT/source"
     printf '%s\n' "$FASE_VAR_VERSION" > "$FASE_OUTPUT_ROOT/source/version"
 ---
-apiVersion: fase.io/v1alpha1
+apiVersion: skyw.top/v1alpha1
 kind: Step
 metadata:
   name: make-package
@@ -39,7 +39,7 @@ spec:
     printf '%s %s\n' "$INPUTS_SOURCE_LABELS_VERSION" "$FASE_VAR_ARCH" > "$FASE_OUTPUT_ROOT/package/result"
     cp "$FASE_INPUT_ROOT/source/version" "$FASE_OUTPUT_ROOT/package/version"
 ---
-apiVersion: fase.io/v1alpha1
+apiVersion: skyw.top/v1alpha1
 kind: Plan
 metadata: {name: hello-source}
 spec:
@@ -62,7 +62,7 @@ spec:
           name: hello-source
           version: {fromVariable: version}
 ---
-apiVersion: fase.io/v1alpha1
+apiVersion: skyw.top/v1alpha1
 kind: Plan
 metadata: {name: hello-package}
 spec:
@@ -93,7 +93,7 @@ spec:
           version: {fromInput: {input: source, label: version}}
           arch: {fromVariable: arch}
 ---
-apiVersion: fase.io/v1alpha1
+apiVersion: skyw.top/v1alpha1
 kind: Request
 metadata: {name: hello-example}
 spec:

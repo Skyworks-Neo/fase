@@ -75,7 +75,7 @@ impl LabelSelector {
 
 #[derive(CustomResource, Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[kube(
-    group = "fase.io",
+    group = "skyw.top",
     version = "v1alpha1",
     kind = "Artifact",
     plural = "artifacts",
@@ -112,7 +112,7 @@ impl JsonSchema for KubernetesObject {
 
 #[derive(CustomResource, Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[kube(
-    group = "fase.io",
+    group = "skyw.top",
     version = "v1alpha1",
     kind = "Step",
     plural = "steps",
@@ -192,7 +192,7 @@ pub struct StepOutputs {
 
 #[derive(CustomResource, Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[kube(
-    group = "fase.io",
+    group = "skyw.top",
     version = "v1alpha1",
     kind = "Plan",
     plural = "plans",
@@ -329,7 +329,7 @@ pub struct InputLabel {
 
 #[derive(CustomResource, Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[kube(
-    group = "fase.io",
+    group = "skyw.top",
     version = "v1alpha1",
     kind = "Request",
     plural = "requests",
@@ -467,7 +467,7 @@ pub struct Condition {
 
 #[derive(CustomResource, Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[kube(
-    group = "fase.io",
+    group = "skyw.top",
     version = "v1alpha1",
     kind = "RequestGenerator",
     plural = "requestgenerators",

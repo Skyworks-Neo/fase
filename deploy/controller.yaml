@@ -13,16 +13,16 @@ kind: Role
 metadata:
   name: fase-controller
 rules:
-  - apiGroups: [fase.io]
+  - apiGroups: [skyw.top]
     resources: [requests, requestgenerators, plans, steps]
     verbs: [get, list]
-  - apiGroups: [fase.io]
+  - apiGroups: [skyw.top]
     resources: [requests]
     verbs: [create]
-  - apiGroups: [fase.io]
+  - apiGroups: [skyw.top]
     resources: [requests/status, requestgenerators/status]
     verbs: [patch]
-  - apiGroups: [fase.io]
+  - apiGroups: [skyw.top]
     resources: [artifacts]
     verbs: [get, list]
   - apiGroups: [batch]
@@ -49,7 +49,7 @@ kind: Role
 metadata:
   name: fase-output
 rules:
-  - apiGroups: [fase.io]
+  - apiGroups: [skyw.top]
     resources: [artifacts]
     verbs: [create, get]
   - apiGroups: [""]

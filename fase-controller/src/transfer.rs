@@ -159,7 +159,7 @@ pub async fn run_output() -> Result<(), String> {
     result_config.immutable = Some(true);
     result_config.metadata.owner_references = Some(vec![
         k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference {
-            api_version: "fase.io/v1alpha1".into(),
+            api_version: "skyw.top/v1alpha1".into(),
             kind: "Request".into(),
             name: manifest.request_name.clone(),
             uid: manifest.request_uid.clone(),

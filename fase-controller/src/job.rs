@@ -135,7 +135,7 @@ pub fn resources(
         .uid
         .as_deref()
         .ok_or("Request UID is required")?;
-    let owner = json!([{"apiVersion":"fase.io/v1alpha1","kind":"Request","name":request.name_any(),"uid":uid,"controller":true,"blockOwnerDeletion":false}]);
+    let owner = json!([{"apiVersion":"skyw.top/v1alpha1","kind":"Request","name":request.name_any(),"uid":uid,"controller":true,"blockOwnerDeletion":false}]);
     let config_name = format!("{name}-cfg");
     let config: ConfigMap = serde_json::from_value(json!({
         "apiVersion":"v1","kind":"ConfigMap",
@@ -205,8 +205,8 @@ pub fn resources(
     let request_label = label_value(&request.name_any());
     let labels = BTreeMap::from([
         ("app.kubernetes.io/name".to_string(), "fase".to_string()),
-        ("fase.io/request".to_string(), request_label),
-        ("fase.io/step".to_string(), label_value(&step.name)),
+        ("skyw.top/request".to_string(), request_label),
+        ("skyw.top/step".to_string(), label_value(&step.name)),
     ]);
     let mut job: Job = serde_json::from_value(json!({
         "apiVersion":"batch/v1","kind":"Job",

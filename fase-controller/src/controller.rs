@@ -441,7 +441,7 @@ async fn manifest_for(
                 Some(o) => (o.name.clone(), evaluate_labels(plan, &o.labels)?),
                 None => (
                     port.name.clone(),
-                    BTreeMap::from([("fase.io/internal".into(), "true".into())]),
+                    BTreeMap::from([("skyw.top/internal".into(), "true".into())]),
                 ),
             };
             Ok(OutputItem {

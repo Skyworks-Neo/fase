@@ -146,7 +146,7 @@ pub async fn reconcile(client: &Client, generator: &RequestGenerator) -> Result<
         if let Some(uid) = &generator.metadata.uid {
             request.metadata.owner_references = Some(vec![
                 k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference {
-                    api_version: "fase.io/v1alpha1".into(),
+                    api_version: "skyw.top/v1alpha1".into(),
                     kind: "RequestGenerator".into(),
                     name: generator.name_any(),
                     uid: uid.clone(),
