@@ -5,18 +5,11 @@ COPY fase-api ./fase-api
 COPY fase-controller ./fase-controller
 RUN cargo build --locked --release -p fase-controller
 
-FROM debian:bookworm-slim AS runtime
+FROM debian:bookworm-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /src/target/release/fase-controller /usr/local/bin/fase-controller
 LABEL org.opencontainers.image.source="https://github.com/Skyworks-Neo/fase"
 ENTRYPOINT ["/usr/local/bin/fase-controller"]
-
-FROM runtime AS helper
-RUN groupadd --gid 1000 fase \
-    && useradd --uid 1000 --gid fase --no-create-home fase
-USER 1000:1000
-
-FROM runtime AS controller
 USER 65532:65532
