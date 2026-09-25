@@ -1,5 +1,0 @@
-apiVersion: v1alpha1
-kind: Package
-labels:
-  version: 0.1.0
-  rev: "1"

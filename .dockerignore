@@ -1,4 +1,5 @@
-target/
-.fase/
+.git
+target
+.fase
 *.env
 *.secret.yaml

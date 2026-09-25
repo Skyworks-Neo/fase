@@ -1,0 +1,1219 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: artifacts.fase.io
+spec:
+  group: fase.io
+  names:
+    categories: []
+    kind: Artifact
+    plural: artifacts
+    shortNames: []
+    singular: artifact
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns: []
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for ArtifactSpec via `CustomResource`
+        properties:
+          spec:
+            properties:
+              name:
+                type: string
+              type:
+                type: string
+            required:
+            - name
+            - type
+            type: object
+        required:
+        - spec
+        title: Artifact
+        type: object
+    served: true
+    storage: true
+    subresources: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: steps.fase.io
+spec:
+  group: fase.io
+  names:
+    categories: []
+    kind: Step
+    plural: steps
+    shortNames: []
+    singular: step
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns: []
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for StepSpec via `CustomResource`
+        properties:
+          spec:
+            properties:
+              command:
+                items:
+                  type: string
+                type: array
+              env:
+                default: []
+                items:
+                  properties:
+                    name:
+                      type: string
+                    value:
+                      nullable: true
+                      type: string
+                    valueFrom:
+                      nullable: true
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                  required:
+                  - name
+                  type: object
+                type: array
+              image:
+                type: string
+              imagePullSecrets:
+                default: []
+                items:
+                  properties:
+                    name:
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+              inputs:
+                default:
+                  artifacts: []
+                  variables: []
+                properties:
+                  artifacts:
+                    default: []
+                    items:
+                      properties:
+                        format:
+                          enum:
+                          - file
+                          - directory
+                          - archive
+                          type: string
+                        name:
+                          type: string
+                        path:
+                          type: string
+                        type:
+                          nullable: true
+                          type: string
+                      required:
+                      - format
+                      - name
+                      - path
+                      type: object
+                    type: array
+                  variables:
+                    default: []
+                    items:
+                      properties:
+                        env:
+                          type: string
+                        name:
+                          type: string
+                        required:
+                          default: false
+                          type: boolean
+                      required:
+                      - env
+                      - name
+                      type: object
+                    type: array
+                type: object
+              nodeSelector:
+                additionalProperties:
+                  type: string
+                default: {}
+                type: object
+              outputs:
+                properties:
+                  artifacts:
+                    items:
+                      properties:
+                        format:
+                          enum:
+                          - file
+                          - directory
+                          - archive
+                          type: string
+                        name:
+                          type: string
+                        path:
+                          type: string
+                        type:
+                          nullable: true
+                          type: string
+                      required:
+                      - format
+                      - name
+                      - path
+                      type: object
+                    type: array
+                required:
+                - artifacts
+                type: object
+              resources:
+                nullable: true
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              script:
+                type: string
+              securityContext:
+                nullable: true
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              tolerations:
+                default: []
+                items:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                type: array
+            required:
+            - command
+            - image
+            - outputs
+            - script
+            type: object
+        required:
+        - spec
+        title: Step
+        type: object
+    served: true
+    storage: true
+    subresources: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: plans.fase.io
+spec:
+  group: fase.io
+  names:
+    categories: []
+    kind: Plan
+    plural: plans
+    shortNames: []
+    singular: plan
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns: []
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for PlanSpec via `CustomResource`
+        properties:
+          spec:
+            properties:
+              inputs:
+                default:
+                  artifacts: []
+                  variables: []
+                properties:
+                  artifacts:
+                    default: []
+                    items:
+                      properties:
+                        artifactSelector:
+                          properties:
+                            matchExpressions:
+                              default: []
+                              items:
+                                properties:
+                                  key:
+                                    type: string
+                                  operator:
+                                    enum:
+                                    - In
+                                    - NotIn
+                                    - Exists
+                                    - DoesNotExist
+                                    type: string
+                                  values:
+                                    default: []
+                                    items:
+                                      type: string
+                                    type: array
+                                required:
+                                - key
+                                - operator
+                                type: object
+                              type: array
+                            matchLabels:
+                              additionalProperties:
+                                type: string
+                              default: {}
+                              type: object
+                          type: object
+                        name:
+                          type: string
+                      required:
+                      - artifactSelector
+                      - name
+                      type: object
+                    type: array
+                  variables:
+                    default: []
+                    items:
+                      properties:
+                        name:
+                          type: string
+                        required:
+                          default: false
+                          type: boolean
+                        type:
+                          enum:
+                          - string
+                          type: string
+                      required:
+                      - name
+                      - type
+                      type: object
+                    type: array
+                type: object
+              outputs:
+                properties:
+                  artifacts:
+                    items:
+                      properties:
+                        from:
+                          properties:
+                            artifact:
+                              nullable: true
+                              type: string
+                            planInput:
+                              nullable: true
+                              type: string
+                            step:
+                              nullable: true
+                              type: string
+                          type: object
+                        labels:
+                          additionalProperties:
+                            anyOf:
+                            - {}
+                            - {}
+                            properties:
+                              fromInput:
+                                nullable: true
+                                properties:
+                                  input:
+                                    type: string
+                                  label:
+                                    type: string
+                                required:
+                                - input
+                                - label
+                                type: object
+                              fromVariable:
+                                nullable: true
+                                type: string
+                            type: object
+                          type: object
+                        name:
+                          type: string
+                      required:
+                      - from
+                      - labels
+                      - name
+                      type: object
+                    type: array
+                required:
+                - artifacts
+                type: object
+              steps:
+                items:
+                  properties:
+                    inputs:
+                      default:
+                        artifacts: []
+                      properties:
+                        artifacts:
+                          default: []
+                          items:
+                            properties:
+                              from:
+                                properties:
+                                  artifact:
+                                    nullable: true
+                                    type: string
+                                  planInput:
+                                    nullable: true
+                                    type: string
+                                  step:
+                                    nullable: true
+                                    type: string
+                                type: object
+                              name:
+                                type: string
+                            required:
+                            - from
+                            - name
+                            type: object
+                          type: array
+                      type: object
+                    name:
+                      type: string
+                    outputs:
+                      items:
+                        properties:
+                          name:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
+                    stepSelector:
+                      properties:
+                        matchExpressions:
+                          default: []
+                          items:
+                            properties:
+                              key:
+                                type: string
+                              operator:
+                                enum:
+                                - In
+                                - NotIn
+                                - Exists
+                                - DoesNotExist
+                                type: string
+                              values:
+                                default: []
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - key
+                            - operator
+                            type: object
+                          type: array
+                        matchLabels:
+                          additionalProperties:
+                            type: string
+                          default: {}
+                          type: object
+                      type: object
+                    variables:
+                      additionalProperties:
+                        properties:
+                          fromVariable:
+                            nullable: true
+                            type: string
+                          value:
+                            nullable: true
+                            type: string
+                        type: object
+                      default: {}
+                      type: object
+                  required:
+                  - name
+                  - outputs
+                  - stepSelector
+                  type: object
+                type: array
+            required:
+            - outputs
+            - steps
+            type: object
+        required:
+        - spec
+        title: Plan
+        type: object
+    served: true
+    storage: true
+    subresources: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: requests.fase.io
+spec:
+  group: fase.io
+  names:
+    categories: []
+    kind: Request
+    plural: requests
+    shortNames: []
+    singular: request
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns: []
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for RequestSpec via `CustomResource`
+        properties:
+          spec:
+            properties:
+              artifactSelector:
+                properties:
+                  matchExpressions:
+                    default: []
+                    items:
+                      properties:
+                        key:
+                          type: string
+                        operator:
+                          enum:
+                          - In
+                          - NotIn
+                          - Exists
+                          - DoesNotExist
+                          type: string
+                        values:
+                          default: []
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    default: {}
+                    type: object
+                type: object
+              variables:
+                additionalProperties:
+                  type: string
+                default: {}
+                type: object
+            required:
+            - artifactSelector
+            type: object
+          status:
+            nullable: true
+            properties:
+              artifactRef:
+                nullable: true
+                properties:
+                  name:
+                    type: string
+                required:
+                - name
+                type: object
+              conditions:
+                default: []
+                items:
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                    message:
+                      type: string
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              phase:
+                enum:
+                - Pending
+                - Running
+                - Verifying
+                - Succeeded
+                - Failed
+                - null
+                nullable: true
+                type: string
+              requestDigest:
+                nullable: true
+                type: string
+              resolvedPlans:
+                default: []
+                items:
+                  properties:
+                    definition:
+                      properties:
+                        inputs:
+                          default:
+                            artifacts: []
+                            variables: []
+                          properties:
+                            artifacts:
+                              default: []
+                              items:
+                                properties:
+                                  artifactSelector:
+                                    properties:
+                                      matchExpressions:
+                                        default: []
+                                        items:
+                                          properties:
+                                            key:
+                                              type: string
+                                            operator:
+                                              enum:
+                                              - In
+                                              - NotIn
+                                              - Exists
+                                              - DoesNotExist
+                                              type: string
+                                            values:
+                                              default: []
+                                              items:
+                                                type: string
+                                              type: array
+                                          required:
+                                          - key
+                                          - operator
+                                          type: object
+                                        type: array
+                                      matchLabels:
+                                        additionalProperties:
+                                          type: string
+                                        default: {}
+                                        type: object
+                                    type: object
+                                  name:
+                                    type: string
+                                required:
+                                - artifactSelector
+                                - name
+                                type: object
+                              type: array
+                            variables:
+                              default: []
+                              items:
+                                properties:
+                                  name:
+                                    type: string
+                                  required:
+                                    default: false
+                                    type: boolean
+                                  type:
+                                    enum:
+                                    - string
+                                    type: string
+                                required:
+                                - name
+                                - type
+                                type: object
+                              type: array
+                          type: object
+                        outputs:
+                          properties:
+                            artifacts:
+                              items:
+                                properties:
+                                  from:
+                                    properties:
+                                      artifact:
+                                        nullable: true
+                                        type: string
+                                      planInput:
+                                        nullable: true
+                                        type: string
+                                      step:
+                                        nullable: true
+                                        type: string
+                                    type: object
+                                  labels:
+                                    additionalProperties:
+                                      anyOf:
+                                      - {}
+                                      - {}
+                                      properties:
+                                        fromInput:
+                                          nullable: true
+                                          properties:
+                                            input:
+                                              type: string
+                                            label:
+                                              type: string
+                                          required:
+                                          - input
+                                          - label
+                                          type: object
+                                        fromVariable:
+                                          nullable: true
+                                          type: string
+                                      type: object
+                                    type: object
+                                  name:
+                                    type: string
+                                required:
+                                - from
+                                - labels
+                                - name
+                                type: object
+                              type: array
+                          required:
+                          - artifacts
+                          type: object
+                        steps:
+                          items:
+                            properties:
+                              inputs:
+                                default:
+                                  artifacts: []
+                                properties:
+                                  artifacts:
+                                    default: []
+                                    items:
+                                      properties:
+                                        from:
+                                          properties:
+                                            artifact:
+                                              nullable: true
+                                              type: string
+                                            planInput:
+                                              nullable: true
+                                              type: string
+                                            step:
+                                              nullable: true
+                                              type: string
+                                          type: object
+                                        name:
+                                          type: string
+                                      required:
+                                      - from
+                                      - name
+                                      type: object
+                                    type: array
+                                type: object
+                              name:
+                                type: string
+                              outputs:
+                                items:
+                                  properties:
+                                    name:
+                                      type: string
+                                  required:
+                                  - name
+                                  type: object
+                                type: array
+                              stepSelector:
+                                properties:
+                                  matchExpressions:
+                                    default: []
+                                    items:
+                                      properties:
+                                        key:
+                                          type: string
+                                        operator:
+                                          enum:
+                                          - In
+                                          - NotIn
+                                          - Exists
+                                          - DoesNotExist
+                                          type: string
+                                        values:
+                                          default: []
+                                          items:
+                                            type: string
+                                          type: array
+                                      required:
+                                      - key
+                                      - operator
+                                      type: object
+                                    type: array
+                                  matchLabels:
+                                    additionalProperties:
+                                      type: string
+                                    default: {}
+                                    type: object
+                                type: object
+                              variables:
+                                additionalProperties:
+                                  properties:
+                                    fromVariable:
+                                      nullable: true
+                                      type: string
+                                    value:
+                                      nullable: true
+                                      type: string
+                                  type: object
+                                default: {}
+                                type: object
+                            required:
+                            - name
+                            - outputs
+                            - stepSelector
+                            type: object
+                          type: array
+                      required:
+                      - outputs
+                      - steps
+                      type: object
+                    inputs:
+                      properties:
+                        artifacts:
+                          default: []
+                          items:
+                            properties:
+                              artifact_ref:
+                                nullable: true
+                                properties:
+                                  name:
+                                    type: string
+                                required:
+                                - name
+                                type: object
+                              from:
+                                properties:
+                                  artifact:
+                                    nullable: true
+                                    type: string
+                                  resolvedPlan:
+                                    nullable: true
+                                    type: string
+                                type: object
+                              labels:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              name:
+                                type: string
+                              type:
+                                type: string
+                            required:
+                            - from
+                            - labels
+                            - name
+                            - type
+                            type: object
+                          type: array
+                      type: object
+                    name:
+                      type: string
+                    outputs:
+                      properties:
+                        artifacts:
+                          additionalProperties:
+                            properties:
+                              artifactRef:
+                                nullable: true
+                                properties:
+                                  name:
+                                    type: string
+                                required:
+                                - name
+                                type: object
+                            type: object
+                          default: {}
+                          type: object
+                      type: object
+                    phase:
+                      enum:
+                      - Pending
+                      - Running
+                      - Verifying
+                      - Succeeded
+                      - Failed
+                      type: string
+                    planRef:
+                      properties:
+                        digest:
+                          type: string
+                        name:
+                          type: string
+                        uid:
+                          type: string
+                      required:
+                      - digest
+                      - name
+                      - uid
+                      type: object
+                    steps:
+                      items:
+                        properties:
+                          attempt:
+                            format: int32
+                            type: integer
+                          definition:
+                            properties:
+                              command:
+                                items:
+                                  type: string
+                                type: array
+                              env:
+                                default: []
+                                items:
+                                  properties:
+                                    name:
+                                      type: string
+                                    value:
+                                      nullable: true
+                                      type: string
+                                    valueFrom:
+                                      nullable: true
+                                      type: object
+                                      x-kubernetes-preserve-unknown-fields: true
+                                  required:
+                                  - name
+                                  type: object
+                                type: array
+                              image:
+                                type: string
+                              imagePullSecrets:
+                                default: []
+                                items:
+                                  properties:
+                                    name:
+                                      type: string
+                                  required:
+                                  - name
+                                  type: object
+                                type: array
+                              inputs:
+                                default:
+                                  artifacts: []
+                                  variables: []
+                                properties:
+                                  artifacts:
+                                    default: []
+                                    items:
+                                      properties:
+                                        format:
+                                          enum:
+                                          - file
+                                          - directory
+                                          - archive
+                                          type: string
+                                        name:
+                                          type: string
+                                        path:
+                                          type: string
+                                        type:
+                                          nullable: true
+                                          type: string
+                                      required:
+                                      - format
+                                      - name
+                                      - path
+                                      type: object
+                                    type: array
+                                  variables:
+                                    default: []
+                                    items:
+                                      properties:
+                                        env:
+                                          type: string
+                                        name:
+                                          type: string
+                                        required:
+                                          default: false
+                                          type: boolean
+                                      required:
+                                      - env
+                                      - name
+                                      type: object
+                                    type: array
+                                type: object
+                              nodeSelector:
+                                additionalProperties:
+                                  type: string
+                                default: {}
+                                type: object
+                              outputs:
+                                properties:
+                                  artifacts:
+                                    items:
+                                      properties:
+                                        format:
+                                          enum:
+                                          - file
+                                          - directory
+                                          - archive
+                                          type: string
+                                        name:
+                                          type: string
+                                        path:
+                                          type: string
+                                        type:
+                                          nullable: true
+                                          type: string
+                                      required:
+                                      - format
+                                      - name
+                                      - path
+                                      type: object
+                                    type: array
+                                required:
+                                - artifacts
+                                type: object
+                              resources:
+                                nullable: true
+                                type: object
+                                x-kubernetes-preserve-unknown-fields: true
+                              script:
+                                type: string
+                              securityContext:
+                                nullable: true
+                                type: object
+                                x-kubernetes-preserve-unknown-fields: true
+                              tolerations:
+                                default: []
+                                items:
+                                  type: object
+                                  x-kubernetes-preserve-unknown-fields: true
+                                type: array
+                            required:
+                            - command
+                            - image
+                            - outputs
+                            - script
+                            type: object
+                          jobRef:
+                            nullable: true
+                            properties:
+                              name:
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          message:
+                            nullable: true
+                            type: string
+                          name:
+                            type: string
+                          outputs:
+                            additionalProperties:
+                              properties:
+                                name:
+                                  type: string
+                              required:
+                              - name
+                              type: object
+                            default: {}
+                            type: object
+                          phase:
+                            enum:
+                            - Pending
+                            - Running
+                            - Verifying
+                            - Succeeded
+                            - Failed
+                            type: string
+                          stepRef:
+                            properties:
+                              digest:
+                                type: string
+                              name:
+                                type: string
+                              uid:
+                                type: string
+                            required:
+                            - digest
+                            - name
+                            - uid
+                            type: object
+                          variables:
+                            additionalProperties:
+                              type: string
+                            type: object
+                        required:
+                        - attempt
+                        - definition
+                        - name
+                        - phase
+                        - stepRef
+                        - variables
+                        type: object
+                      type: array
+                    variables:
+                      additionalProperties:
+                        type: string
+                      type: object
+                  required:
+                  - definition
+                  - inputs
+                  - name
+                  - outputs
+                  - phase
+                  - planRef
+                  - steps
+                  - variables
+                  type: object
+                type: array
+              targetOutput:
+                nullable: true
+                type: string
+            type: object
+        required:
+        - spec
+        title: Request
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: requestgenerators.fase.io
+spec:
+  group: fase.io
+  names:
+    categories: []
+    kind: RequestGenerator
+    plural: requestgenerators
+    shortNames: []
+    singular: requestgenerator
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns: []
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for RequestGeneratorSpec via `CustomResource`
+        properties:
+          spec:
+            properties:
+              matrix:
+                additionalProperties:
+                  items:
+                    type: string
+                  type: array
+                default: {}
+                type: object
+              schedule:
+                properties:
+                  cron:
+                    type: string
+                required:
+                - cron
+                type: object
+              source:
+                properties:
+                  selector:
+                    additionalProperties: true
+                    type: object
+                  type:
+                    type: string
+                required:
+                - selector
+                - type
+                type: object
+              template:
+                properties:
+                  request:
+                    properties:
+                      artifactSelector:
+                        properties:
+                          matchExpressions:
+                            default: []
+                            items:
+                              properties:
+                                key:
+                                  type: string
+                                operator:
+                                  enum:
+                                  - In
+                                  - NotIn
+                                  - Exists
+                                  - DoesNotExist
+                                  type: string
+                                values:
+                                  default: []
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - key
+                              - operator
+                              type: object
+                            type: array
+                          matchLabels:
+                            additionalProperties:
+                              type: string
+                            default: {}
+                            type: object
+                        type: object
+                      variables:
+                        additionalProperties:
+                          type: string
+                        default: {}
+                        type: object
+                    required:
+                    - artifactSelector
+                    type: object
+                required:
+                - request
+                type: object
+            required:
+            - schedule
+            - source
+            - template
+            type: object
+          status:
+            nullable: true
+            properties:
+              conditions:
+                default: []
+                items:
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                    message:
+                      type: string
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              generatedRequests:
+                default: []
+                items:
+                  properties:
+                    name:
+                      type: string
+                    variables:
+                      additionalProperties:
+                        type: string
+                      type: object
+                  required:
+                  - name
+                  - variables
+                  type: object
+                type: array
+              lastScheduleTime:
+                nullable: true
+                type: string
+            type: object
+        required:
+        - spec
+        title: RequestGenerator
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

@@ -1,5 +1,0 @@
-apiVersion: v1alpha1
-kind: Install
-must:
-  - fooname: bar
-prefer: []

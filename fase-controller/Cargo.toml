@@ -1,0 +1,31 @@
+[package]
+name = "fase-controller"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+fase-api.workspace = true
+clap.workspace = true
+k8s-openapi.workspace = true
+kube.workspace = true
+object_store.workspace = true
+rustls.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tar.workspace = true
+zstd = "0.13"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+chrono = { version = "0.4", features = ["serde"] }
+cron = "0.17"
+reqwest = { version = "0.13", features = ["json"] }
+
+[dev-dependencies]
+serde_yml.workspace = true
+tempfile = "3"

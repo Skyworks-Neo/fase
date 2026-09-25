@@ -1,5 +1,0 @@
-apiVersion: v1alpha1
-kind: Package
-labels:
-  name: another-package
-  version: 9.9.9
