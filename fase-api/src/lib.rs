@@ -307,8 +307,14 @@ pub struct PlanOutput {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(untagged)]
 pub enum LabelBinding {
-    Literal(String),
+    Literal(LabelLiteral),
     Bound(LabelSource),
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LabelLiteral {
+    pub value: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]

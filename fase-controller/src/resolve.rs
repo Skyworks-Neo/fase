@@ -254,7 +254,7 @@ impl Solver<'_> {
         let mut labels = Labels::new();
         for (key, binding) in &output.labels {
             let value = match binding {
-                LabelBinding::Literal(v) => v.clone(),
+                LabelBinding::Literal(v) => v.value.clone(),
                 LabelBinding::Bound(source) => match (&source.from_variable, &source.from_input) {
                     (Some(v), None) => variables
                         .get(v)
@@ -544,7 +544,7 @@ fn frozen_labels(
     let mut labels = Labels::new();
     for (key, binding) in &output.labels {
         let value = match binding {
-            LabelBinding::Literal(value) => value.clone(),
+            LabelBinding::Literal(value) => value.value.clone(),
             LabelBinding::Bound(source) => match (&source.from_variable, &source.from_input) {
                 (Some(name), None) => plan
                     .variables
@@ -604,7 +604,7 @@ fn forced_value(selector: &LabelSelector, key: &str) -> Option<String> {
 fn may_match(out: &fase_api::PlanOutput, demand: &LabelSelector, variables: &Variables) -> bool {
     for (key, binding) in &out.labels {
         let known = match binding {
-            LabelBinding::Literal(v) => Some(v),
+            LabelBinding::Literal(v) => Some(&v.value),
             LabelBinding::Bound(s) => s.from_variable.as_ref().and_then(|v| variables.get(v)),
         };
         if let Some(value) = known {

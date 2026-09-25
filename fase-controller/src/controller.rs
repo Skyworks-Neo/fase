@@ -476,7 +476,7 @@ fn evaluate_labels(
     let mut labels = Labels::new();
     for (key, binding) in bindings {
         let value = match binding {
-            LabelBinding::Literal(v) => v.clone(),
+            LabelBinding::Literal(v) => v.value.clone(),
             LabelBinding::Bound(source) => match (&source.from_variable, &source.from_input) {
                 (Some(v), None) => plan
                     .variables

@@ -59,7 +59,7 @@ spec:
       - name: source
         from: {step: make, artifact: source}
         labels:
-          name: hello-source
+          name: {value: hello-source}
           version: {fromVariable: version}
 ---
 apiVersion: skyw.top/v1alpha1
@@ -89,7 +89,7 @@ spec:
       - name: package
         from: {step: package, artifact: package}
         labels:
-          name: hello-package
+          name: {value: hello-package}
           version: {fromInput: {input: source, label: version}}
           arch: {fromVariable: arch}
 ---
