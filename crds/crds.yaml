@@ -493,6 +493,27 @@ spec:
                       type: string
                   type: object
                 type: array
+              workspace:
+                default:
+                  inputSizeLimit: '2Gi'
+                  outputSizeLimit: '2Gi'
+                  taskSizeLimit: '2Gi'
+                  transferSizeLimit: '2Gi'
+                properties:
+                  inputSizeLimit:
+                    type: string
+                  outputSizeLimit:
+                    type: string
+                  taskSizeLimit:
+                    type: string
+                  transferSizeLimit:
+                    type: string
+                required:
+                - inputSizeLimit
+                - outputSizeLimit
+                - taskSizeLimit
+                - transferSizeLimit
+                type: object
             required:
             - command
             - image

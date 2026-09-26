@@ -217,9 +217,9 @@ spec:
         - name: FASE_ALLOW_INSECURE_S3
           value: 'true'
         - name: FASE_MAX_ARTIFACT_BYTES
-          value: '536870912'
+          value: '8589934592'
         - name: FASE_STEP_TIMEOUT_SECONDS
-          value: '3600'
+          value: '86400'
         - name: FASE_S3_REGION
           value: us-east-1
         - name: FASE_S3_PREFIX
