@@ -61,7 +61,7 @@ spec:
     export XDG_CACHE_HOME=/workspace/cache
     mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src "$FASE_OUTPUT_ROOT/wheels"
     tar -xf "$FASE_INPUT_ROOT/source.tar.gz" -C /workspace/src
-    cd /workspace/src/jax-0.11.1
+    cd /workspace/src/jax-jax-v0.11.1
     python=/opt/python/cp313-cp313/bin/python
     "$python" --version
     "$python" -m pip install --disable-pip-version-check --no-cache-dir 'setuptools==84.0.0' 'wheel==0.45.1'
