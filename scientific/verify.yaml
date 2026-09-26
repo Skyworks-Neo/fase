@@ -273,6 +273,7 @@ spec:
         matchLabels:
           name: pandas-glibc-wheels
           version: 3.0.6
+          source-deps: fase-glibc
     - name: pygments
       artifactSelector:
         matchLabels:

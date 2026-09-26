@@ -97,6 +97,7 @@ spec:
         labels:
           name: {value: pandas-glibc-wheels}
           version: {value: "3.0.6"}
+          source-deps: {value: fase-glibc}
           python: {value: cp313}
           libc: {value: glibc}
           arch: {value: amd64}

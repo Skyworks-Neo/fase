@@ -21,6 +21,7 @@ CORE = {
     "pymc": ("pymc-glibc-wheels", "6.3.2"),
     "jax": ("jax-cpu-wheels", "0.11.1"),
 }
+EXTRA_INPUT_LABELS = {"pandas": {"source-deps": "fase-glibc"}}
 
 
 class Literal(str):
@@ -107,6 +108,7 @@ PY
         "spec": {
             "inputs": {"artifacts": [{"name": name, "artifactSelector": {"matchLabels": {
                 "name": target_name, "version": version,
+                **EXTRA_INPUT_LABELS.get(name, {}),
             }}} for name, (target_name, version) in sorted(dependencies.items())]},
             "tasks": [{
                 "name": "verify", "taskSelector": {"matchLabels": {"capability": "verify-pymc-cpu-offline"}},

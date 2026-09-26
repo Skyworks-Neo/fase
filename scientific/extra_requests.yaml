@@ -3,11 +3,12 @@ kind: Request
 metadata:
   name: champion-glibc-pandas
 spec:
-  rerun: 1
+  rerun: 2
   artifactSelector:
     matchLabels:
       name: pandas-glibc-wheels
       version: "3.0.6"
+      source-deps: fase-glibc
 ---
 apiVersion: skyw.top/v1beta1
 kind: Request
