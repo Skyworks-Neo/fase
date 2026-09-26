@@ -76,50 +76,148 @@ impl LabelSelector {
 #[derive(CustomResource, Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[kube(
     group = "skyw.top",
-    version = "v1alpha1",
+    version = "v1beta1",
     kind = "Artifact",
     plural = "artifacts",
     namespaced
 )]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("x-kubernetes-validations" = [{"rule": "self == oldSelf", "message": "Artifact spec is immutable"}]))]
 pub struct ArtifactSpec {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub artifact_type: String,
+    pub content_digest: String,
+    pub size_bytes: i64,
+    pub kind: ArtifactKind,
+    pub storage_ref: StorageReference,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
-#[serde(rename_all = "kebab-case")]
-pub enum ArtifactFormat {
-    File,
-    Directory,
-    Archive,
-}
-
-/// Kubernetes owns these nested container fields; retain their native shape in the CRD.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(transparent)]
-pub struct KubernetesObject(pub serde_json::Value);
-
-impl JsonSchema for KubernetesObject {
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        "KubernetesObject".into()
-    }
-    fn json_schema(_: &mut SchemaGenerator) -> Schema {
-        json_schema!({"type":"object","x-kubernetes-preserve-unknown-fields":true})
-    }
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StorageReference {
+    pub key: String,
 }
 
 #[derive(CustomResource, Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[kube(
     group = "skyw.top",
-    version = "v1alpha1",
-    kind = "Step",
-    plural = "steps",
+    version = "v1beta1",
+    kind = "ArtifactClaim",
+    plural = "artifactclaims",
     namespaced
 )]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct StepSpec {
+#[schemars(extend("x-kubernetes-validations" = [{"rule": "self == oldSelf", "message": "ArtifactClaim spec is immutable"}]))]
+pub struct ArtifactClaimSpec {
+    pub artifact_ref: ArtifactReference,
+    pub build_key: String,
+    pub producer: ProducerReference,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProducerReference {
+    pub recipe_ref: ObjectReference,
+    pub run_ref: ObjectReference,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum ArtifactKind {
+    File,
+    Tree,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(transparent)]
+pub struct TolerationValue(pub serde_json::Value);
+impl JsonSchema for TolerationValue {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "TolerationValue".into()
+    }
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        json_schema!({"type":"object","additionalProperties":false,"properties":{
+            "key":{"type":"string"},"operator":{"type":"string","enum":["Exists","Equal"]},
+            "value":{"type":"string"},"effect":{"type":"string","enum":["NoSchedule","PreferNoSchedule","NoExecute",""]},
+            "tolerationSeconds":{"type":"integer","format":"int64","minimum":0}
+        }})
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(transparent)]
+pub struct SecurityContextValue(pub serde_json::Value);
+impl JsonSchema for SecurityContextValue {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "SecurityContextValue".into()
+    }
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        json_schema!({"type":"object","additionalProperties":false,"properties":{
+            "allowPrivilegeEscalation":{"type":"boolean"},"privileged":{"type":"boolean"},
+            "readOnlyRootFilesystem":{"type":"boolean"},"runAsNonRoot":{"type":"boolean"},
+            "runAsUser":{"type":"integer","format":"int64"},"runAsGroup":{"type":"integer","format":"int64"},
+            "capabilities":{"type":"object","additionalProperties":false,"properties":{
+                "add":{"type":"array","items":{"type":"string"}},"drop":{"type":"array","items":{"type":"string"}}}},
+            "seccompProfile":{"type":"object","additionalProperties":false,"required":["type"],"properties":{
+                "type":{"type":"string","enum":["Localhost","RuntimeDefault","Unconfined"]},"localhostProfile":{"type":"string"}}},
+            "seLinuxOptions":{"type":"object","additionalProperties":false,"properties":{
+                "user":{"type":"string"},"role":{"type":"string"},"type":{"type":"string"},"level":{"type":"string"}}},
+            "procMount":{"type":"string","enum":["Default","Unmasked"]},
+            "appArmorProfile":{"type":"object","additionalProperties":false,"required":["type"],"properties":{
+                "type":{"type":"string","enum":["Localhost","RuntimeDefault","Unconfined"]},"localhostProfile":{"type":"string"}}}
+        }})
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(transparent)]
+pub struct ResourcesValue(pub serde_json::Value);
+impl JsonSchema for ResourcesValue {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "ResourcesValue".into()
+    }
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        json_schema!({"type":"object","additionalProperties":false,"properties":{
+            "requests":{"type":"object","additionalProperties":{"type":"string"}},
+            "limits":{"type":"object","additionalProperties":{"type":"string"}},
+            "claims":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["name"],"properties":{
+                "name":{"type":"string"},"request":{"type":"string"}}}}
+        }})
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(transparent)]
+pub struct EnvValueFrom(pub serde_json::Value);
+impl JsonSchema for EnvValueFrom {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "EnvValueFrom".into()
+    }
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        let key_ref = serde_json::json!({"type":"object","additionalProperties":false,"required":["name","key"],"properties":{
+            "name":{"type":"string"},"key":{"type":"string"},"optional":{"type":"boolean"}}});
+        let field_ref = serde_json::json!({"type":"object","additionalProperties":false,"required":["fieldPath"],"properties":{
+            "apiVersion":{"type":"string"},"fieldPath":{"type":"string"}}});
+        let resource_ref = serde_json::json!({"type":"object","additionalProperties":false,"required":["resource"],"properties":{
+            "containerName":{"type":"string"},"resource":{"type":"string"},"divisor":{"type":"string"}}});
+        json_schema!({"type":"object","additionalProperties":false,"properties":{
+            "configMapKeyRef":key_ref,"secretKeyRef":key_ref,
+            "fieldRef":field_ref,"resourceFieldRef":resource_ref
+        },"oneOf":[
+            {"required":["configMapKeyRef"]}, {"required":["secretKeyRef"]},
+            {"required":["fieldRef"]}, {"required":["resourceFieldRef"]}
+        ]})
+    }
+}
+
+#[derive(CustomResource, Clone, Debug, Default, Deserialize, Serialize, JsonSchema)]
+#[kube(
+    group = "skyw.top",
+    version = "v1beta1",
+    kind = "Task",
+    plural = "tasks",
+    namespaced
+)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TaskSpec {
     pub image: String,
     pub command: Vec<String>,
     #[serde(default)]
@@ -127,17 +225,42 @@ pub struct StepSpec {
     #[serde(default)]
     pub node_selector: Labels,
     #[serde(default)]
-    pub tolerations: Vec<KubernetesObject>,
+    pub tolerations: Vec<TolerationValue>,
     #[serde(default)]
-    pub security_context: Option<KubernetesObject>,
+    pub security_context: Option<SecurityContextValue>,
     #[serde(default)]
-    pub resources: Option<KubernetesObject>,
+    pub resources: Option<ResourcesValue>,
     #[serde(default)]
     pub env: Vec<EnvVar>,
     #[serde(default)]
-    pub inputs: StepInputs,
-    pub outputs: StepOutputs,
+    pub retry: RetryPolicy,
+    #[serde(default)]
+    pub inputs: TaskInputs,
+    pub outputs: TaskOutputs,
     pub script: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RetryPolicy {
+    pub max_attempts: i32,
+    #[serde(default)]
+    pub retry_on: Vec<FailureClass>,
+}
+impl Default for RetryPolicy {
+    fn default() -> Self {
+        Self {
+            max_attempts: 1,
+            retry_on: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+pub enum FailureClass {
+    Infrastructure,
+    Output,
+    Task,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
@@ -153,12 +276,12 @@ pub struct EnvVar {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub value_from: Option<KubernetesObject>,
+    pub value_from: Option<EnvValueFrom>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct StepInputs {
+pub struct TaskInputs {
     #[serde(default)]
     pub variables: Vec<VariableInput>,
     #[serde(default)]
@@ -179,45 +302,43 @@ pub struct VariableInput {
 pub struct ArtifactPort {
     pub name: String,
     pub path: String,
-    pub format: ArtifactFormat,
-    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
-    pub artifact_type: Option<String>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct StepOutputs {
-    pub artifacts: Vec<ArtifactPort>,
-}
-
-#[derive(CustomResource, Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[kube(
-    group = "skyw.top",
-    version = "v1alpha1",
-    kind = "Plan",
-    plural = "plans",
-    namespaced
-)]
-#[serde(deny_unknown_fields)]
-pub struct PlanSpec {
-    #[serde(default)]
-    pub inputs: PlanInputs,
-    pub steps: Vec<PlanStep>,
-    pub outputs: PlanOutputs,
+    pub kind: ArtifactKind,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct PlanInputs {
+pub struct TaskOutputs {
+    pub artifacts: Vec<ArtifactPort>,
+}
+
+#[derive(CustomResource, Clone, Debug, Default, Deserialize, Serialize, JsonSchema)]
+#[kube(
+    group = "skyw.top",
+    version = "v1beta1",
+    kind = "Recipe",
+    plural = "recipes",
+    namespaced
+)]
+#[serde(deny_unknown_fields)]
+pub struct RecipeSpec {
     #[serde(default)]
-    pub variables: Vec<PlanVariable>,
+    pub inputs: RecipeInputs,
+    pub tasks: Vec<RecipeTask>,
+    pub outputs: RecipeOutputs,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RecipeInputs {
     #[serde(default)]
-    pub artifacts: Vec<PlanArtifactInput>,
+    pub variables: Vec<RecipeVariable>,
+    #[serde(default)]
+    pub artifacts: Vec<RecipeArtifactInput>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct PlanVariable {
+pub struct RecipeVariable {
     pub name: String,
     #[serde(rename = "type")]
     pub value_type: VariableType,
@@ -233,20 +354,20 @@ pub enum VariableType {
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct PlanArtifactInput {
+pub struct RecipeArtifactInput {
     pub name: String,
     pub artifact_selector: LabelSelector,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct PlanStep {
+pub struct RecipeTask {
     pub name: String,
-    pub step_selector: LabelSelector,
+    pub task_selector: LabelSelector,
     #[serde(default)]
     pub variables: BTreeMap<String, VariableBinding>,
     #[serde(default)]
-    pub inputs: StepBindings,
+    pub inputs: TaskBindings,
     pub outputs: Vec<NamedOutput>,
 }
 
@@ -257,11 +378,13 @@ pub struct VariableBinding {
     pub value: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub from_variable: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from_input: Option<InputLabel>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct StepBindings {
+pub struct TaskBindings {
     #[serde(default)]
     pub artifacts: Vec<ArtifactBinding>,
 }
@@ -277,9 +400,9 @@ pub struct ArtifactBinding {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ArtifactOrigin {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub plan_input: Option<String>,
+    pub recipe_input: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub step: Option<String>,
+    pub task: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub artifact: Option<String>,
 }
@@ -290,15 +413,15 @@ pub struct NamedOutput {
     pub name: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct PlanOutputs {
-    pub artifacts: Vec<PlanOutput>,
+pub struct RecipeOutputs {
+    pub artifacts: Vec<RecipeOutput>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct PlanOutput {
+pub struct RecipeOutput {
     pub name: String,
     pub from: ArtifactOrigin,
     pub labels: BTreeMap<String, LabelBinding>,
@@ -336,7 +459,7 @@ pub struct InputLabel {
 #[derive(CustomResource, Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[kube(
     group = "skyw.top",
-    version = "v1alpha1",
+    version = "v1beta1",
     kind = "Request",
     plural = "requests",
     namespaced,
@@ -345,8 +468,38 @@ pub struct InputLabel {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RequestSpec {
     pub artifact_selector: LabelSelector,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recipe_selector: Option<LabelSelector>,
     #[serde(default)]
     pub variables: Variables,
+    #[serde(default)]
+    #[schemars(range(min = 0))]
+    pub rerun: i64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ObjectReference {
+    pub api_version: String,
+    pub kind: String,
+    pub name: String,
+    pub uid: String,
+    pub generation: i64,
+}
+
+#[derive(CustomResource, Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[kube(
+    group = "skyw.top",
+    version = "v1beta1",
+    kind = "Run",
+    plural = "runs",
+    namespaced,
+    status = "RunStatus"
+)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("x-kubernetes-validations" = [{"rule": "self == oldSelf", "message": "Run spec is immutable"}]))]
+pub struct RunSpec {
+    pub request_ref: ObjectReference,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, JsonSchema)]
@@ -355,15 +508,44 @@ pub struct RequestStatus {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub phase: Option<Phase>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_ref: Option<ArtifactReference>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub claim_ref: Option<ArtifactReference>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub artifact_ref: Option<ArtifactReference>,
+    #[serde(default)]
+    pub conditions: Vec<Condition>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RunStatus {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub phase: Option<Phase>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_digest: Option<String>,
     #[serde(default)]
-    pub resolved_plans: Vec<ResolvedPlanStatus>,
+    pub resolved_recipes: Vec<ResolvedRecipeStatus>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub artifact_ref: Option<ArtifactReference>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub claim_ref: Option<ArtifactReference>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target_output: Option<String>,
     #[serde(default)]
+    pub diagnostics: Vec<ResolutionDiagnostic>,
+    #[serde(default)]
     pub conditions: Vec<Condition>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ResolutionDiagnostic {
+    pub candidate: String,
+    pub reason: String,
+    pub message: String,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
@@ -376,23 +558,17 @@ pub enum Phase {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct PlanReference {
-    pub name: String,
-    pub uid: String,
-    pub digest: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct ResolvedPlanStatus {
+pub struct ResolvedRecipeStatus {
     pub name: String,
-    pub plan_ref: PlanReference,
-    pub definition: PlanSpec,
+    pub recipe_ref: ObjectReference,
+    #[serde(skip)]
+    #[schemars(skip)]
+    pub definition: RecipeSpec,
     pub variables: Variables,
     pub phase: Phase,
     pub inputs: ResolvedInputs,
-    pub steps: Vec<StepStatus>,
+    pub tasks: Vec<TaskStatus>,
     pub outputs: ResolvedOutputs,
 }
 
@@ -409,34 +585,45 @@ pub struct ResolvedInput {
     pub name: String,
     pub from: ResolvedInputOrigin,
     pub labels: Labels,
-    #[serde(rename = "type")]
-    pub artifact_type: String,
+    pub kind: ArtifactKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_digest: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub artifact_ref: Option<ArtifactReference>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub claim_ref: Option<ArtifactReference>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ResolvedInputOrigin {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub resolved_plan: Option<String>,
+    pub resolved_recipe: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub artifact: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct StepStatus {
+pub struct TaskStatus {
     pub name: String,
     pub phase: Phase,
     pub attempt: i32,
-    pub step_ref: PlanReference,
-    pub definition: StepSpec,
+    pub task_ref: ObjectReference,
+    #[serde(skip)]
+    #[schemars(skip)]
+    pub definition: TaskSpec,
     pub variables: Variables,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub build_key: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub job_ref: Option<ArtifactReference>,
     #[serde(default)]
     pub outputs: BTreeMap<String, ArtifactReference>,
+    #[serde(default)]
+    pub output_digests: BTreeMap<String, String>,
+    #[serde(default)]
+    pub claims: BTreeMap<String, ArtifactReference>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
 }
@@ -453,6 +640,10 @@ pub struct ResolvedOutputs {
 pub struct ResolvedOutput {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub artifact_ref: Option<ArtifactReference>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub claim_ref: Option<ArtifactReference>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
@@ -474,7 +665,7 @@ pub struct Condition {
 #[derive(CustomResource, Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[kube(
     group = "skyw.top",
-    version = "v1alpha1",
+    version = "v1beta1",
     kind = "RequestGenerator",
     plural = "requestgenerators",
     namespaced,
@@ -526,9 +717,11 @@ pub fn crds_yaml() -> Result<String, serde_yml::Error> {
     let mut result = String::new();
     for crd in [
         Artifact::crd(),
-        Step::crd(),
-        Plan::crd(),
+        ArtifactClaim::crd(),
+        Task::crd(),
+        Recipe::crd(),
         Request::crd(),
+        Run::crd(),
         RequestGenerator::crd(),
     ] {
         if !result.is_empty() {
@@ -567,7 +760,25 @@ pub fn valid_label_key(key: &str) -> bool {
             && s.as_bytes().first().is_some_and(u8::is_ascii_alphanumeric)
             && s.as_bytes().last().is_some_and(u8::is_ascii_alphanumeric)
     };
-    valid_part(name) && prefix.is_none_or(|p| p.len() <= 253 && p.split('.').all(valid_part))
+    valid_part(name)
+        && prefix.is_none_or(|p| {
+            p.len() <= 253
+                && p.split('.').all(|part| {
+                    !part.is_empty()
+                        && part.len() <= 63
+                        && part
+                            .bytes()
+                            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+                        && part
+                            .as_bytes()
+                            .first()
+                            .is_some_and(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+                        && part
+                            .as_bytes()
+                            .last()
+                            .is_some_and(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+                })
+        })
 }
 pub fn valid_label_value(v: &str) -> bool {
     v.is_empty()
@@ -594,8 +805,11 @@ pub fn valid_path(path: &str) -> bool {
             .join("/")
             == path
 }
-impl StepSpec {
+impl TaskSpec {
     pub fn validate(&self) -> Result<(), String> {
+        if !(1..=10).contains(&self.retry.max_attempts) {
+            return Err("retry.maxAttempts must be between 1 and 10".into());
+        }
         if self.image.trim().is_empty()
             || self.command.len() != 1
             || !matches!(
@@ -640,6 +854,26 @@ impl StepSpec {
                 return Err(format!("invalid env {}", e.name));
             }
             if let Some(value) = &e.value_from {
+                let source = value
+                    .0
+                    .as_object()
+                    .ok_or_else(|| format!("invalid valueFrom for {}", e.name))?;
+                if source
+                    .keys()
+                    .filter(|key| {
+                        matches!(
+                            key.as_str(),
+                            "configMapKeyRef" | "secretKeyRef" | "fieldRef" | "resourceFieldRef"
+                        )
+                    })
+                    .count()
+                    != 1
+                {
+                    return Err(format!(
+                        "valueFrom for {} must select exactly one source",
+                        e.name
+                    ));
+                }
                 serde_json::from_value::<k8s_openapi::api::core::v1::EnvVarSource>(value.0.clone())
                     .map_err(|error| format!("invalid valueFrom for {}: {error}", e.name))?;
             }
@@ -660,9 +894,6 @@ impl StepSpec {
             for p in ports {
                 if !valid_name(&p.name)
                     || !valid_path(&p.path)
-                    || p.artifact_type
-                        .as_ref()
-                        .is_some_and(|kind| !artifact_type_matches_format(kind, p.format))
                     || !names.insert(&p.name)
                     || !paths.insert(&p.path)
                 {
@@ -678,22 +909,6 @@ impl StepSpec {
             }
         }
         Ok(())
-    }
-}
-pub fn artifact_type_matches_format(kind: &str, format: ArtifactFormat) -> bool {
-    matches!(
-        (kind, format),
-        ("file", ArtifactFormat::File)
-            | ("directory", ArtifactFormat::Directory)
-            | ("tar.zst", ArtifactFormat::Archive)
-    )
-}
-pub fn artifact_format(kind: &str) -> Option<ArtifactFormat> {
-    match kind {
-        "file" => Some(ArtifactFormat::File),
-        "directory" => Some(ArtifactFormat::Directory),
-        "tar.zst" => Some(ArtifactFormat::Archive),
-        _ => None,
     }
 }
 pub fn valid_env(s: &str) -> bool {
@@ -729,5 +944,74 @@ mod tests {
             ("name".into(), "package".into()),
             ("arch".into(), "arm64".into())
         ])));
+        assert!(valid_label_key("skyw.top/name"));
+        assert!(!valid_label_key("bad_prefix/name"));
+        assert!(!valid_label_key("Upper.example/name"));
+    }
+
+    #[test]
+    fn run_status_serializes_references_without_definition_snapshots() {
+        let reference = ObjectReference {
+            api_version: "skyw.top/v1beta1".into(),
+            kind: "Recipe".into(),
+            name: "recipe".into(),
+            uid: "uid".into(),
+            generation: 2,
+        };
+        let task_reference = ObjectReference {
+            kind: "Task".into(),
+            ..reference.clone()
+        };
+        let task = TaskStatus {
+            name: "task".into(),
+            phase: Phase::Pending,
+            attempt: 0,
+            task_ref: task_reference,
+            definition: TaskSpec::default(),
+            variables: Variables::new(),
+            build_key: None,
+            job_ref: None,
+            outputs: BTreeMap::new(),
+            output_digests: BTreeMap::new(),
+            claims: BTreeMap::new(),
+            message: None,
+        };
+        let recipe = ResolvedRecipeStatus {
+            name: "recipe".into(),
+            recipe_ref: reference,
+            definition: RecipeSpec::default(),
+            variables: Variables::new(),
+            phase: Phase::Pending,
+            inputs: ResolvedInputs::default(),
+            tasks: vec![task],
+            outputs: ResolvedOutputs::default(),
+        };
+        let status = RunStatus {
+            resolved_recipes: vec![recipe],
+            ..RunStatus::default()
+        };
+        let json = serde_json::to_value(status).unwrap();
+        assert!(json["resolvedRecipes"][0].get("definition").is_none());
+        assert!(
+            json["resolvedRecipes"][0]["tasks"][0]
+                .get("definition")
+                .is_none()
+        );
+        assert_eq!(json["resolvedRecipes"][0]["recipeRef"]["generation"], 2);
+    }
+
+    #[test]
+    fn generated_crds_expose_only_file_and_tree_ports() {
+        let crds = crds_yaml().unwrap();
+        assert!(!crds.contains("v1alpha1"));
+        let task = serde_yml::Deserializer::from_str(&crds)
+            .filter_map(|doc| serde_json::Value::deserialize(doc).ok())
+            .find(|doc| doc["spec"]["names"]["kind"] == "Task")
+            .unwrap();
+        let port = &task["spec"]["versions"][0]["schema"]["openAPIV3Schema"]["properties"]["spec"]
+            ["properties"]["outputs"]["properties"]["artifacts"]["items"]["properties"];
+        assert!(port.get("kind").is_some());
+        assert!(port.get("format").is_none());
+        assert!(port.get("type").is_none());
     }
 }
