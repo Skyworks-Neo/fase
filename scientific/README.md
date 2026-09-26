@@ -13,6 +13,9 @@ verification Recipe combines 31 wheel/prefix artifacts, installs with
 `--no-index`, then exercises SciPy linear algebra, Numba, JAX CPU, PyTensor,
 and PyMC.
 
+The pandas and ml_dtypes Requests start after the shared glibc NumPy artifact
+is available.
+
 The ROCm line pins TheRock
 7.14.1 and the ROCm/JAX 0.11.1 fork, targeting gfx942. The PyMC and ROCm SDK
 Requests start these two independent dependency lines. The ROCm/JAX plugin

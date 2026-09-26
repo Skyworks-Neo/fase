@@ -1,0 +1,19 @@
+apiVersion: skyw.top/v1beta1
+kind: Request
+metadata:
+  name: champion-glibc-pandas
+spec:
+  artifactSelector:
+    matchLabels:
+      name: pandas-glibc-wheels
+      version: "3.0.6"
+---
+apiVersion: skyw.top/v1beta1
+kind: Request
+metadata:
+  name: champion-glibc-ml-dtypes
+spec:
+  artifactSelector:
+    matchLabels:
+      name: ml-dtypes-glibc-wheels
+      version: "0.6.0"

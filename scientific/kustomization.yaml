@@ -13,3 +13,4 @@ resources:
   - verify.yaml
   - requests.yaml
   - pure_requests.yaml
+  - extra_requests.yaml
