@@ -40,3 +40,23 @@ spec:
     matchLabels:
       name: python-glibc
       version: "3.13.15"
+---
+apiVersion: skyw.top/v1beta1
+kind: Request
+metadata:
+  name: champion-pure-cachetools
+spec:
+  artifactSelector:
+    matchLabels:
+      name: cachetools-glibc-wheels
+      version: "6.2.6"
+---
+apiVersion: skyw.top/v1beta1
+kind: Request
+metadata:
+  name: champion-pure-arviz
+spec:
+  artifactSelector:
+    matchLabels:
+      name: arviz-glibc-wheels
+      version: "1.3.0"
