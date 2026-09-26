@@ -106,6 +106,10 @@ spec:
     export PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
     export DEBIAN_FRONTEND=noninteractive HOME=/workspace/home TMPDIR=/workspace/tmp
     mkdir -p "$HOME" "$TMPDIR" /workspace/src/therock
+    sed -i \
+      -e 's#http://archive.ubuntu.com/ubuntu/#http://mirrors.tuna.tsinghua.edu.cn/ubuntu/#g' \
+      -e 's#http://security.ubuntu.com/ubuntu/#http://mirrors.tuna.tsinghua.edu.cn/ubuntu/#g' \
+      /etc/apt/sources.list.d/ubuntu.sources
     apt-get update -qq
     apt-get install -y -qq --no-install-recommends \
       ca-certificates curl make gfortran git ninja-build cmake g++ pkg-config xxd \

@@ -14,7 +14,7 @@ kind: Request
 metadata:
   name: champion-rocm-sdk-gfx942
 spec:
-  rerun: 4
+  rerun: 5
   artifactSelector:
     matchLabels:
       name: rocm-gfx942-sdk

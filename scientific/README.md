@@ -23,6 +23,9 @@ Request follows after JAX CPU and the SDK have both completed. ROCm validation
 checks produced archives and wheels; this cluster has no AMD GPU for runtime
 testing.
 
+Build tools use the Tsinghua PyPI mirror, and the Ubuntu ROCm builder uses its
+Ubuntu mirror. Pinned target source archives still carry SHA256 digests.
+
 Large Tasks use `node1` or `worker1.adamanteye.cc`, with up to 32 CPUs, 64Gi
 memory, 300Gi ephemeral storage and a 24-hour controller timeout. The glibc
 NumPy, SciPy, LLVM, and JAX CPU builds run on `worker1.adamanteye.cc` so they
