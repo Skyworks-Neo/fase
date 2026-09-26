@@ -857,11 +857,6 @@ spec:
                     default: {}
                     type: object
                 type: object
-              rerun:
-                default: 0
-                format: int64
-                minimum: 0.0
-                type: integer
             type: object
           status:
             nullable: true
