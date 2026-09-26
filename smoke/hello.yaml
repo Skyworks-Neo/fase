@@ -1,0 +1,104 @@
+apiVersion: skyw.top/v1beta1
+kind: Task
+metadata:
+  name: make-source
+  labels: {capability: make-source}
+spec:
+  image: alpine:3.21
+  command: [/bin/sh]
+  inputs:
+    variables:
+      - {name: version, env: FASE_VAR_VERSION, required: true}
+  outputs:
+    artifacts:
+      - {name: source, path: source, kind: tree}
+  script: |
+    set -eu
+    mkdir -p "$FASE_OUTPUT_ROOT/source"
+    printf '%s\n' "$FASE_VAR_VERSION" > "$FASE_OUTPUT_ROOT/source/version"
+---
+apiVersion: skyw.top/v1beta1
+kind: Task
+metadata:
+  name: make-package
+  labels: {capability: make-package}
+spec:
+  image: alpine:3.21
+  command: [/bin/sh]
+  inputs:
+    variables:
+      - {name: arch, env: FASE_VAR_ARCH, required: true}
+    artifacts:
+      - {name: source, path: source, kind: tree}
+  outputs:
+    artifacts:
+      - {name: package, path: package, kind: tree}
+  script: |
+    set -eu
+    mkdir -p "$FASE_OUTPUT_ROOT/package"
+    printf '%s %s\n' "$INPUTS_SOURCE_LABELS_VERSION" "$FASE_VAR_ARCH" > "$FASE_OUTPUT_ROOT/package/result"
+    cp "$FASE_INPUT_ROOT/source/version" "$FASE_OUTPUT_ROOT/package/version"
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata: {name: hello-source}
+spec:
+  inputs:
+    variables:
+      - {name: version, type: string, required: true}
+  tasks:
+    - name: make
+      taskSelector:
+        matchLabels: {capability: make-source}
+      variables:
+        version: {fromVariable: version}
+      outputs:
+        - {name: source}
+  outputs:
+    artifacts:
+      - name: source
+        from: {task: make, artifact: source}
+        labels:
+          name: {value: hello-source}
+          version: {fromVariable: version}
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata: {name: hello-package}
+spec:
+  inputs:
+    variables:
+      - {name: arch, type: string, required: true}
+    artifacts:
+      - name: source
+        artifactSelector:
+          matchLabels: {name: hello-source}
+  tasks:
+    - name: package
+      taskSelector:
+        matchLabels: {capability: make-package}
+      variables:
+        arch: {fromVariable: arch}
+      inputs:
+        artifacts:
+          - {name: source, from: {recipeInput: source}}
+      outputs:
+        - {name: package}
+  outputs:
+    artifacts:
+      - name: package
+        from: {task: package, artifact: package}
+        labels:
+          name: {value: hello-package}
+          version: {fromInput: {input: source, label: version}}
+          arch: {fromVariable: arch}
+---
+apiVersion: skyw.top/v1beta1
+kind: Request
+metadata: {name: hello-example}
+spec:
+  artifactSelector:
+    matchLabels: {name: hello-package, version: "1.0", arch: amd64}
+  variables:
+    version: "1.0"
+    arch: amd64

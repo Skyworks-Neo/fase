@@ -1,0 +1,64 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: fase-beta
+  namespace: flux-system
+spec:
+  interval: 1m
+  ref:
+    branch: gitops-beta
+  url: https://github.com/Skyworks-Neo/fase.git
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: fase-beta-crds
+  namespace: flux-system
+spec:
+  interval: 1m
+  path: ./crds
+  prune: false
+  sourceRef:
+    kind: GitRepository
+    name: fase-beta
+  serviceAccountName: kustomize-controller
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: fase-beta-runtime
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: fase-beta-crds
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: fase-controller
+      namespace: fase-beta
+  interval: 1m
+  path: ./runtime
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: fase-beta
+  serviceAccountName: kustomize-controller
+  targetNamespace: fase-beta
+  timeout: 5m
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: fase-beta-smoke
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: fase-beta-runtime
+  interval: 1m
+  path: ./smoke
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: fase-beta
+  serviceAccountName: kustomize-controller
+  targetNamespace: fase-beta

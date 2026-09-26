@@ -1,0 +1,234 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fase-controller
+imagePullSecrets:
+- name: fase-ghcr-pull
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fase-output
+imagePullSecrets:
+- name: fase-ghcr-pull
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: fase-controller
+rules:
+- apiGroups:
+  - skyw.top
+  resources:
+  - requests
+  - requestgenerators
+  - recipes
+  - tasks
+  - runs
+  - artifacts
+  - artifactclaims
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - skyw.top
+  resources:
+  - requests
+  - runs
+  verbs:
+  - create
+- apiGroups:
+  - skyw.top
+  resources:
+  - requests/status
+  - runs/status
+  - requestgenerators/status
+  verbs:
+  - patch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - create
+  - get
+- apiGroups:
+  - ''
+  resources:
+  - configmaps
+  verbs:
+  - create
+  - get
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - list
+- apiGroups:
+  - ''
+  resources:
+  - events
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: fase-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: fase-controller
+subjects:
+- kind: ServiceAccount
+  name: fase-controller
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: fase-output
+rules:
+- apiGroups:
+  - skyw.top
+  resources:
+  - artifacts
+  - artifactclaims
+  verbs:
+  - create
+  - get
+- apiGroups:
+  - ''
+  resources:
+  - configmaps
+  verbs:
+  - create
+  - get
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: fase-output
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: fase-output
+subjects:
+- kind: ServiceAccount
+  name: fase-output
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: fase-artifactclaim-integrity
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - skyw.top
+      apiVersions:
+      - v1beta1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - artifactclaims
+      scope: Namespaced
+  validations:
+  - expression: request.operation != 'CREATE' || request.userInfo.username == 'system:serviceaccount:'
+      + request.namespace + ':fase-output'
+    message: Only the Fase output service account may create ArtifactClaims
+  - expression: request.operation != 'UPDATE' || (object.metadata.labels == oldObject.metadata.labels
+      && object.spec == oldObject.spec)
+    message: ArtifactClaim labels and spec are immutable
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: fase-artifactclaim-integrity
+spec:
+  policyName: fase-artifactclaim-integrity
+  validationActions:
+  - Deny
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fase-controller
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: fase-controller
+  template:
+    metadata:
+      labels:
+        app: fase-controller
+    spec:
+      serviceAccountName: fase-controller
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: controller
+        image: ghcr.io/skyworks-neo/fase@sha256:46881f69a74f198a2a62043d22e65f1f2204dfcb2686960e63501c9c5e563f0c
+        imagePullPolicy: IfNotPresent
+        args:
+        - run
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+            ephemeral-storage: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 512Mi
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: FASE_HELPER_IMAGE
+          value: ghcr.io/skyworks-neo/fase-helper@sha256:443904093392fd2517513640b5280fe58d484ea713cb81968ed3a99932a0e7c0
+        - name: FASE_OUTPUT_SERVICE_ACCOUNT
+          value: fase-output
+        - name: FASE_S3_BUCKET
+          value: fase
+        - name: FASE_S3_ENDPOINT
+          value: http://silo.infra.svc.cluster.local
+        - name: FASE_ALLOW_INSECURE_S3
+          value: 'true'
+        - name: FASE_MAX_ARTIFACT_BYTES
+          value: '536870912'
+        - name: FASE_STEP_TIMEOUT_SECONDS
+          value: '3600'
+        - name: FASE_S3_REGION
+          value: us-east-1
+        - name: FASE_S3_PREFIX
+          value: fase-beta
+        - name: FASE_S3_ANONYMOUS
+          value: 'false'
+        - name: FASE_S3_READ_SECRET
+          value: fase-s3-read
+        - name: FASE_S3_WRITE_SECRET
+          value: fase-s3-write
+      imagePullSecrets:
+      - name: fase-ghcr-pull
