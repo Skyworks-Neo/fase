@@ -14,6 +14,7 @@ kind: Request
 metadata:
   name: champion-glibc-pymc
 spec:
+  rerun: 1
   artifactSelector:
     matchLabels:
       name: pymc-glibc-wheels
@@ -24,7 +25,7 @@ kind: Request
 metadata:
   name: champion-rocm-sdk-gfx942
 spec:
-  rerun: 1
+  rerun: 2
   artifactSelector:
     matchLabels:
       name: rocm-gfx942-sdk
