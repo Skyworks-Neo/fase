@@ -231,6 +231,8 @@ pub struct TaskSpec {
     #[serde(default)]
     pub resources: Option<ResourcesValue>,
     #[serde(default)]
+    pub workspace: TaskWorkspace,
+    #[serde(default)]
     pub env: Vec<EnvVar>,
     #[serde(default)]
     pub retry: RetryPolicy,
@@ -238,6 +240,46 @@ pub struct TaskSpec {
     pub inputs: TaskInputs,
     pub outputs: TaskOutputs,
     pub script: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TaskWorkspace {
+    pub task_size_limit: String,
+    pub input_size_limit: String,
+    pub output_size_limit: String,
+    pub transfer_size_limit: String,
+}
+
+impl Default for TaskWorkspace {
+    fn default() -> Self {
+        Self {
+            task_size_limit: "2Gi".into(),
+            input_size_limit: "2Gi".into(),
+            output_size_limit: "2Gi".into(),
+            transfer_size_limit: "2Gi".into(),
+        }
+    }
+}
+
+impl TaskWorkspace {
+    fn validate(&self) -> Result<(), String> {
+        for (name, value) in [
+            ("taskSizeLimit", &self.task_size_limit),
+            ("inputSizeLimit", &self.input_size_limit),
+            ("outputSizeLimit", &self.output_size_limit),
+            ("transferSizeLimit", &self.transfer_size_limit),
+        ] {
+            let amount = value
+                .strip_suffix("Gi")
+                .and_then(|number| number.parse::<u32>().ok())
+                .filter(|amount| (1..=512).contains(amount));
+            if amount.is_none() {
+                return Err(format!("workspace.{name} must be between 1Gi and 512Gi"));
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
@@ -807,6 +849,7 @@ pub fn valid_path(path: &str) -> bool {
 }
 impl TaskSpec {
     pub fn validate(&self) -> Result<(), String> {
+        self.workspace.validate()?;
         if !(1..=10).contains(&self.retry.max_attempts) {
             return Err("retry.maxAttempts must be between 1 and 10".into());
         }

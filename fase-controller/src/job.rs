@@ -195,6 +195,7 @@ pub fn resources(
         "requests":{"cpu":"100m","memory":"128Mi","ephemeral-storage":"1Gi"},
         "limits":{"cpu":"1","memory":"1Gi","ephemeral-storage":"2Gi"}
     });
+    let workspace = &task.definition.workspace;
     let shell = task
         .definition
         .command
@@ -242,11 +243,11 @@ pub fn resources(
                 "enableServiceLinks":false,
                 "securityContext":{"fsGroup":1000},
                 "volumes":[
-                    {"name":"inputs","emptyDir":{"sizeLimit":"2Gi"}},
-                    {"name":"outputs","emptyDir":{"sizeLimit":"2Gi"}},
-                    {"name":"input-temp","emptyDir":{"sizeLimit":"2Gi"}},
-                    {"name":"task-temp","emptyDir":{"sizeLimit":"2Gi"}},
-                    {"name":"output-temp","emptyDir":{"sizeLimit":"2Gi"}},
+                    {"name":"inputs","emptyDir":{"sizeLimit":workspace.input_size_limit}},
+                    {"name":"outputs","emptyDir":{"sizeLimit":workspace.output_size_limit}},
+                    {"name":"input-temp","emptyDir":{"sizeLimit":workspace.transfer_size_limit}},
+                    {"name":"task-temp","emptyDir":{"sizeLimit":workspace.task_size_limit}},
+                    {"name":"output-temp","emptyDir":{"sizeLimit":workspace.transfer_size_limit}},
                     {"name":"config","configMap":{"name":config_name}},
                     {"name":"output-token","projected":{"sources":[{"serviceAccountToken":{"path":"token","expirationSeconds":7200}},{"configMap":{"name":"kube-root-ca.crt","items":[{"key":"ca.crt","path":"ca.crt"}]}},{"downwardAPI":{"items":[{"path":"namespace","fieldRef":{"fieldPath":"metadata.namespace"}}]}}]}}
                 ],
@@ -270,7 +271,8 @@ pub fn resources(
                             {"name":"inputs","mountPath":"/in","readOnly":true},
                             {"name":"outputs","mountPath":"/out"},
                                 {"name":"config","mountPath":"/run/fase/config","readOnly":true},
-                            {"name":"task-temp","mountPath":"/tmp"}
+                            {"name":"task-temp","mountPath":"/tmp"},
+                            {"name":"task-temp","mountPath":"/workspace"}
                         ]
                     },
                     {
@@ -314,6 +316,16 @@ pub fn resources(
     }
     if let Some(v) = &task.definition.resources {
         main.resources = Some(serde_json::from_value(v.0.clone()).map_err(|e| e.to_string())?);
+    }
+    // The helpers hold a complete artifact in memory while transferring it.
+    // Large workspaces need matching helper limits as well as larger volumes.
+    if workspace.transfer_size_limit != "2Gi" {
+        let helper_resources: k8s_openapi::api::core::v1::ResourceRequirements = serde_json::from_value(json!({
+            "requests":{"cpu":"100m","memory":"1Gi","ephemeral-storage":"1Gi"},
+            "limits":{"cpu":"2","memory":"24Gi","ephemeral-storage":workspace.transfer_size_limit}
+        })).map_err(|e| e.to_string())?;
+        pod.init_containers.as_mut().unwrap()[0].resources = Some(helper_resources.clone());
+        pod.containers[1].resources = Some(helper_resources);
     }
     Ok((config, job))
 }
@@ -363,6 +375,10 @@ mod tests {
         template.spec.image_pull_secrets.push(fase_api::LocalRef {
             name: "registry".into(),
         });
+        template.spec.workspace.task_size_limit = "300Gi".into();
+        template.spec.workspace.input_size_limit = "32Gi".into();
+        template.spec.workspace.output_size_limit = "32Gi".into();
+        template.spec.workspace.transfer_size_limit = "32Gi".into();
         template
             .spec
             .node_selector
@@ -433,6 +449,36 @@ mod tests {
         )
         .unwrap();
         let pod = job.spec.unwrap().template.spec.unwrap();
+        assert_eq!(
+            pod.volumes.as_ref().unwrap()[3]
+                .empty_dir
+                .as_ref()
+                .unwrap()
+                .size_limit
+                .as_ref()
+                .unwrap()
+                .0,
+            "300Gi"
+        );
+        assert!(
+            pod.containers[0]
+                .volume_mounts
+                .as_ref()
+                .unwrap()
+                .iter()
+                .any(|mount| mount.mount_path == "/workspace")
+        );
+        assert_eq!(
+            pod.containers[1]
+                .resources
+                .as_ref()
+                .unwrap()
+                .limits
+                .as_ref()
+                .unwrap()["memory"]
+                .0,
+            "24Gi"
+        );
         assert_eq!(pod.image_pull_secrets.unwrap()[0].name, "registry");
         assert_eq!(pod.node_selector.unwrap()["kubernetes.io/os"], "linux");
         let env = pod.containers[0].env.as_ref().unwrap();

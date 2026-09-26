@@ -349,7 +349,7 @@ pub fn materialize(
 }
 
 fn extract_tar(target: &FsPath, reader: impl std::io::Read) -> Result<(), String> {
-    const MAX_EXTRACTED_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+    const MAX_EXTRACTED_BYTES: u64 = 8 * 1024 * 1024 * 1024;
     const MAX_ENTRIES: usize = 100_000;
     std::fs::create_dir_all(target).map_err(|error| error.to_string())?;
     let mut archive = tar::Archive::new(reader);
