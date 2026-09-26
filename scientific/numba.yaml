@@ -1,0 +1,382 @@
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata: {name: fetch-llvmlite-0-49-0}
+spec:
+  tasks:
+    - name: fetch
+      taskSelector:
+        matchLabels: {capability: fetch-url}
+      variables:
+        url: {value: "https://files.pythonhosted.org/packages/43/27/72ae94ea5c8f7349ec1c229d4cd058feb799cbd0833ad6d1b47c919b37b7/llvmlite-0.49.0.tar.gz"}
+        sha256: {value: "00f16db782f4a13c78c5804aedc434e46794a77e89999a168f9401106270e50a"}
+        version: {value: "0.49.0"}
+      outputs: [{name: source}]
+  outputs:
+    artifacts:
+      - name: source
+        from: {task: fetch, artifact: source}
+        labels:
+          name: {value: llvmlite-source}
+          version: {value: "0.49.0"}
+          recipe: {value: fetch-v2}
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata: {name: fetch-numba-0-67-0}
+spec:
+  tasks:
+    - name: fetch
+      taskSelector:
+        matchLabels: {capability: fetch-url}
+      variables:
+        url: {value: "https://files.pythonhosted.org/packages/7a/90/2544f4e3a61e501d6c9a5418fd4b905323222693d54a02cab0106a0af865/numba-0.67.0.tar.gz"}
+        sha256: {value: "cd75aa535b33fa05d9d930b1ae8af9f97a2881e96d72dfb38ec9b78284d9f851"}
+        version: {value: "0.67.0"}
+      outputs: [{name: source}]
+  outputs:
+    artifacts:
+      - name: source
+        from: {task: fetch, artifact: source}
+        labels:
+          name: {value: numba-source}
+          version: {value: "0.67.0"}
+          recipe: {value: fetch-v2}
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata: {name: fetch-filelock-3-20-3}
+spec:
+  tasks:
+    - name: fetch
+      taskSelector:
+        matchLabels: {capability: fetch-url}
+      variables:
+        url: {value: "https://files.pythonhosted.org/packages/1d/65/ce7f1b70157833bf3cb851b556a37d4547ceafc158aa9b34b36782f23696/filelock-3.20.3.tar.gz"}
+        sha256: {value: "18c57ee915c7ec61cff0ecf7f0f869936c7c30191bb0cf406f1341778d0834e1"}
+        version: {value: "3.20.3"}
+      outputs: [{name: source}]
+  outputs:
+    artifacts:
+      - name: source
+        from: {task: fetch, artifact: source}
+        labels:
+          name: {value: filelock-source}
+          version: {value: "3.20.3"}
+          recipe: {value: fetch-v2}
+---
+apiVersion: skyw.top/v1beta1
+kind: Task
+metadata: {name: glibc-llvm22-build, labels: {capability: glibc-llvm22-build}}
+spec:
+  image: quay.io/pypa/manylinux_2_28_x86_64@sha256:407f771c51a2c3e83ebe5a7970b4289ead3a6db21d9b9c089168775cad11d328
+  command: [/bin/bash]
+  nodeSelector: {kubernetes.io/hostname: node1}
+  securityContext:
+    runAsUser: 0
+    runAsNonRoot: false
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    seccompProfile: {type: RuntimeDefault}
+  resources:
+    requests: {cpu: "32", memory: 64Gi, ephemeral-storage: 200Gi}
+    limits: {cpu: "32", memory: 64Gi, ephemeral-storage: 300Gi}
+  workspace: {taskSizeLimit: 300Gi, inputSizeLimit: 32Gi, outputSizeLimit: 32Gi, transferSizeLimit: 32Gi}
+  inputs:
+    artifacts:
+      - {name: source, path: llvm-project.tar.xz, kind: file}
+  outputs:
+    artifacts:
+      - {name: prefix, path: llvm, kind: tree}
+      - {name: report, path: llvm22-glibc-build.txt, kind: file}
+  script: |
+    set -Eeuo pipefail
+    export HOME=/workspace/home TMPDIR=/workspace/tmp
+    python=/opt/python/cp313-cp313/bin/python
+    mkdir -p "$HOME" "$TMPDIR" /workspace/src "$FASE_OUTPUT_ROOT/llvm"
+    "$python" -m pip install --disable-pip-version-check --no-cache-dir 'ninja==1.13.2'
+    export PATH=/opt/python/cp313-cp313/bin:$PATH
+    tar -xf "$FASE_INPUT_ROOT/llvm-project.tar.xz" -C /workspace/src
+    src=$(find /workspace/src -mindepth 1 -maxdepth 1 -type d | head -1)
+    test -f "$src/llvm/CMakeLists.txt"
+    cmake -S "$src/llvm" -B /workspace/build -GNinja \
+      -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$FASE_OUTPUT_ROOT/llvm" \
+      -DLLVM_TARGETS_TO_BUILD=X86 -DLLVM_ENABLE_RTTI=ON \
+      -DLLVM_BUILD_LLVM_DYLIB=ON -DLLVM_LINK_LLVM_DYLIB=ON \
+      -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF
+    cmake --build /workspace/build -j32
+    cmake --install /workspace/build
+    test -x "$FASE_OUTPUT_ROOT/llvm/bin/llvm-config"
+    "$FASE_OUTPUT_ROOT/llvm/bin/llvm-config" --version | grep -q '^22\.'
+    {
+      printf 'LLVM 22.1.6 built from source for llvmlite 0.49.0\n'
+      "$FASE_OUTPUT_ROOT/llvm/bin/llvm-config" --version
+      find "$FASE_OUTPUT_ROOT/llvm/lib" -maxdepth 1 -name 'libLLVM*.so*' -type f -exec sha256sum {} +
+    } > "$FASE_OUTPUT_ROOT/llvm22-glibc-build.txt"
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata: {name: glibc-llvm22-build}
+spec:
+  inputs:
+    artifacts:
+      - name: source
+        artifactSelector:
+          matchLabels: {name: llvm-project-source, version: "22.1.6", recipe: fetch-v1}
+  tasks:
+    - name: build
+      taskSelector:
+        matchLabels: {capability: glibc-llvm22-build}
+      inputs:
+        artifacts:
+          - {name: source, from: {recipeInput: source}}
+      outputs: [{name: prefix}, {name: report}]
+  outputs:
+    artifacts:
+      - name: prefix
+        from: {task: build, artifact: prefix}
+        labels:
+          name: {value: llvm22-glibc}
+          version: {value: "22.1.6"}
+          libc: {value: glibc}
+          arch: {value: amd64}
+      - name: report
+        from: {task: build, artifact: report}
+        labels:
+          name: {value: llvm22-glibc-report}
+          version: {value: "22.1.6"}
+---
+apiVersion: skyw.top/v1beta1
+kind: Task
+metadata: {name: glibc-llvmlite-build, labels: {capability: glibc-llvmlite-build}}
+spec:
+  image: quay.io/pypa/manylinux_2_28_x86_64@sha256:407f771c51a2c3e83ebe5a7970b4289ead3a6db21d9b9c089168775cad11d328
+  command: [/bin/bash]
+  nodeSelector: {kubernetes.io/hostname: node1}
+  securityContext:
+    runAsUser: 0
+    runAsNonRoot: false
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    seccompProfile: {type: RuntimeDefault}
+  resources:
+    requests: {cpu: "16", memory: 32Gi, ephemeral-storage: 64Gi}
+    limits: {cpu: "32", memory: 64Gi, ephemeral-storage: 300Gi}
+  workspace: {taskSizeLimit: 300Gi, inputSizeLimit: 32Gi, outputSizeLimit: 32Gi, transferSizeLimit: 32Gi}
+  inputs:
+    artifacts:
+      - {name: source, path: llvmlite.tar.gz, kind: file}
+      - {name: llvm, path: llvm, kind: tree}
+  outputs:
+    artifacts:
+      - {name: wheels, path: wheels, kind: tree}
+      - {name: report, path: llvmlite-glibc-build.txt, kind: file}
+  script: |
+    set -Eeuo pipefail
+    export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
+    export CMAKE_PREFIX_PATH="$FASE_INPUT_ROOT/llvm"
+    export CMAKE_ARGS="-DLLVM_DIR=$FASE_INPUT_ROOT/llvm/lib/cmake/llvm"
+    export LLVM_CONFIG="$FASE_INPUT_ROOT/llvm/bin/llvm-config"
+    export LD_LIBRARY_PATH="$FASE_INPUT_ROOT/llvm/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    export LLVMLITE_PACKAGE_FORMAT=wheel LLVMLITE_USE_RTTI=ON
+    python=/opt/python/cp313-cp313/bin/python
+    mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src /workspace/wheels "$FASE_OUTPUT_ROOT/wheels"
+    "$python" -m pip install --disable-pip-version-check --no-cache-dir 'setuptools==84.0.0' 'wheel==0.45.1'
+    "$LLVM_CONFIG" --version | grep -q '^22\.'
+    tar -xf "$FASE_INPUT_ROOT/llvmlite.tar.gz" -C /workspace/src
+    cd /workspace/src/llvmlite-0.49.0
+    "$python" -m pip wheel --disable-pip-version-check --no-deps --no-build-isolation \
+      --wheel-dir /workspace/wheels .
+    "$python" -m auditwheel repair --plat manylinux_2_28_x86_64 \
+      /workspace/wheels/llvmlite-0.49.0-*.whl -w "$FASE_OUTPUT_ROOT/wheels"
+    test "$(find "$FASE_OUTPUT_ROOT/wheels" -name 'llvmlite-*.whl' | wc -l)" -eq 1
+    unzip -t "$FASE_OUTPUT_ROOT"/wheels/llvmlite-*.whl >/dev/null
+    {
+      printf 'llvmlite 0.49.0 built from source against source-built LLVM 22.1.6\n'
+      sha256sum "$FASE_OUTPUT_ROOT"/wheels/llvmlite-*.whl
+    } > "$FASE_OUTPUT_ROOT/llvmlite-glibc-build.txt"
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata: {name: glibc-llvmlite-build}
+spec:
+  inputs:
+    artifacts:
+      - name: source
+        artifactSelector:
+          matchLabels: {name: llvmlite-source, version: "0.49.0", recipe: fetch-v2}
+      - name: llvm
+        artifactSelector:
+          matchLabels: {name: llvm22-glibc, version: "22.1.6"}
+  tasks:
+    - name: build
+      taskSelector:
+        matchLabels: {capability: glibc-llvmlite-build}
+      inputs:
+        artifacts:
+          - {name: source, from: {recipeInput: source}}
+          - {name: llvm, from: {recipeInput: llvm}}
+      outputs: [{name: wheels}, {name: report}]
+  outputs:
+    artifacts:
+      - name: wheels
+        from: {task: build, artifact: wheels}
+        labels:
+          name: {value: llvmlite-glibc-wheels}
+          version: {value: "0.49.0"}
+          python: {value: cp313}
+          libc: {value: glibc}
+          arch: {value: amd64}
+      - name: report
+        from: {task: build, artifact: report}
+        labels:
+          name: {value: llvmlite-glibc-report}
+          version: {value: "0.49.0"}
+---
+apiVersion: skyw.top/v1beta1
+kind: Task
+metadata: {name: glibc-numba-build, labels: {capability: glibc-numba-build}}
+spec:
+  image: quay.io/pypa/manylinux_2_28_x86_64@sha256:407f771c51a2c3e83ebe5a7970b4289ead3a6db21d9b9c089168775cad11d328
+  command: [/bin/bash]
+  nodeSelector: {kubernetes.io/hostname: node1}
+  securityContext:
+    runAsUser: 0
+    runAsNonRoot: false
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    seccompProfile: {type: RuntimeDefault}
+  resources:
+    requests: {cpu: "16", memory: 32Gi, ephemeral-storage: 64Gi}
+    limits: {cpu: "32", memory: 64Gi, ephemeral-storage: 300Gi}
+  workspace: {taskSizeLimit: 300Gi, inputSizeLimit: 32Gi, outputSizeLimit: 32Gi, transferSizeLimit: 32Gi}
+  inputs:
+    artifacts:
+      - {name: source, path: numba.tar.gz, kind: file}
+      - {name: llvmlite, path: llvmlite-wheels, kind: tree}
+      - {name: numpy, path: numpy-wheels, kind: tree}
+  outputs:
+    artifacts:
+      - {name: wheels, path: wheels, kind: tree}
+      - {name: report, path: numba-glibc-build.txt, kind: file}
+  script: |
+    set -Eeuo pipefail
+    export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
+    python=/opt/python/cp313-cp313/bin/python
+    mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src /workspace/wheels "$FASE_OUTPUT_ROOT/wheels"
+    "$python" -m pip install --disable-pip-version-check --no-cache-dir 'setuptools==84.0.0' 'wheel==0.45.1'
+    "$python" -m pip install --no-index --no-deps "$FASE_INPUT_ROOT"/numpy-wheels/numpy-*.whl
+    "$python" -m pip install --no-index --no-deps "$FASE_INPUT_ROOT"/llvmlite-wheels/llvmlite-*.whl
+    "$python" -c 'import llvmlite, numpy; assert llvmlite.__version__ == "0.49.0"; assert numpy.__version__ == "2.5.3"'
+    tar -xf "$FASE_INPUT_ROOT/numba.tar.gz" -C /workspace/src
+    cd /workspace/src/numba-0.67.0
+    "$python" -m pip wheel --disable-pip-version-check --no-deps --no-build-isolation \
+      --wheel-dir /workspace/wheels .
+    "$python" -m auditwheel repair --plat manylinux_2_28_x86_64 \
+      /workspace/wheels/numba-0.67.0-*.whl -w "$FASE_OUTPUT_ROOT/wheels"
+    test "$(find "$FASE_OUTPUT_ROOT/wheels" -name 'numba-*.whl' | wc -l)" -eq 1
+    unzip -t "$FASE_OUTPUT_ROOT"/wheels/numba-*.whl >/dev/null
+    {
+      printf 'Numba 0.67.0 built from source with source-built llvmlite and NumPy\n'
+      sha256sum "$FASE_OUTPUT_ROOT"/wheels/numba-*.whl
+    } > "$FASE_OUTPUT_ROOT/numba-glibc-build.txt"
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata: {name: glibc-numba-build}
+spec:
+  inputs:
+    artifacts:
+      - name: source
+        artifactSelector:
+          matchLabels: {name: numba-source, version: "0.67.0", recipe: fetch-v2}
+      - name: llvmlite
+        artifactSelector:
+          matchLabels: {name: llvmlite-glibc-wheels, version: "0.49.0"}
+      - name: numpy
+        artifactSelector:
+          matchLabels: {name: numpy-glibc-wheels, version: "2.5.3"}
+  tasks:
+    - name: build
+      taskSelector:
+        matchLabels: {capability: glibc-numba-build}
+      inputs:
+        artifacts:
+          - {name: source, from: {recipeInput: source}}
+          - {name: llvmlite, from: {recipeInput: llvmlite}}
+          - {name: numpy, from: {recipeInput: numpy}}
+      outputs: [{name: wheels}, {name: report}]
+  outputs:
+    artifacts:
+      - name: wheels
+        from: {task: build, artifact: wheels}
+        labels:
+          name: {value: numba-glibc-wheels}
+          version: {value: "0.67.0"}
+          python: {value: cp313}
+          libc: {value: glibc}
+          arch: {value: amd64}
+      - name: report
+        from: {task: build, artifact: report}
+        labels:
+          name: {value: numba-glibc-report}
+          version: {value: "0.67.0"}
+---
+apiVersion: skyw.top/v1beta1
+kind: Task
+metadata: {name: filelock-source-build, labels: {capability: filelock-source-build}}
+spec:
+  image: quay.io/pypa/manylinux_2_28_x86_64@sha256:407f771c51a2c3e83ebe5a7970b4289ead3a6db21d9b9c089168775cad11d328
+  command: [/bin/bash]
+  nodeSelector: {kubernetes.io/hostname: node1}
+  securityContext:
+    runAsUser: 0
+    runAsNonRoot: false
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    seccompProfile: {type: RuntimeDefault}
+  resources:
+    requests: {cpu: "1", memory: 2Gi, ephemeral-storage: 2Gi}
+    limits: {cpu: "2", memory: 4Gi, ephemeral-storage: 8Gi}
+  inputs:
+    artifacts:
+      - {name: source, path: filelock.tar.gz, kind: file}
+  outputs:
+    artifacts:
+      - {name: wheels, path: wheels, kind: tree}
+  script: |
+    set -Eeuo pipefail
+    python=/opt/python/cp313-cp313/bin/python
+    mkdir -p /tmp/filelock-src "$FASE_OUTPUT_ROOT/wheels"
+    "$python" -m pip install --disable-pip-version-check --no-cache-dir \
+      'hatchling==1.27.0' 'hatch-vcs==0.5.0'
+    tar -xf "$FASE_INPUT_ROOT/filelock.tar.gz" -C /tmp/filelock-src
+    cd /tmp/filelock-src/filelock-3.20.3
+    "$python" -m pip wheel --disable-pip-version-check --no-deps --no-build-isolation \
+      --wheel-dir "$FASE_OUTPUT_ROOT/wheels" .
+    test -s "$FASE_OUTPUT_ROOT"/wheels/filelock-3.20.3-*.whl
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata: {name: filelock-source-build}
+spec:
+  inputs:
+    artifacts:
+      - name: source
+        artifactSelector:
+          matchLabels: {name: filelock-source, version: "3.20.3", recipe: fetch-v2}
+  tasks:
+    - name: build
+      taskSelector:
+        matchLabels: {capability: filelock-source-build}
+      inputs:
+        artifacts:
+          - {name: source, from: {recipeInput: source}}
+      outputs: [{name: wheels}]
+  outputs:
+    artifacts:
+      - name: wheels
+        from: {task: build, artifact: wheels}
+        labels:
+          name: {value: filelock-glibc-wheels}
+          version: {value: "3.20.3"}
+          python: {value: cp313}

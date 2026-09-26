@@ -6,4 +6,5 @@ resources:
   - glibc.yaml
   - probabilistic.yaml
   - rocm.yaml
+  - numba.yaml
   - requests.yaml
