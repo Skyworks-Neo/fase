@@ -105,6 +105,7 @@ spec:
     export LD_LIBRARY_PATH="$FASE_INPUT_ROOT/openblas/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     export NINJAFLAGS=-j32
     python=/opt/python/cp313-cp313/bin/python
+    export PATH=/opt/python/cp313-cp313/bin:$PATH
     mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src /workspace/wheels "$FASE_OUTPUT_ROOT/wheels"
     "$python" -m pip install --disable-pip-version-check --no-cache-dir \
       'meson==1.12.1' 'meson-python==0.21.1' 'pyproject-metadata==0.12.1' \
@@ -196,6 +197,7 @@ spec:
     export LD_LIBRARY_PATH="$FASE_INPUT_ROOT/openblas/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     export NINJAFLAGS=-j32
     python=/opt/python/cp313-cp313/bin/python
+    export PATH=/opt/python/cp313-cp313/bin:$PATH
     mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src /workspace/wheels "$FASE_OUTPUT_ROOT/wheels"
     "$python" -m pip install --disable-pip-version-check --no-cache-dir \
       'meson==1.12.1' 'meson-python==0.21.1' 'pyproject-metadata==0.12.1' \

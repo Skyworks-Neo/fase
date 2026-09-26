@@ -50,6 +50,7 @@ spec:
     umask 022
     export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
     python=/opt/python/cp313-cp313/bin/python
+    export PATH=/opt/python/cp313-cp313/bin:$PATH
     mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src /workspace/wheels "$FASE_OUTPUT_ROOT/wheels"
     "$python" -m pip install --disable-pip-version-check --no-cache-dir \
       'meson-python==0.21.1' 'meson==1.12.1' 'wheel==0.45.1' \
@@ -135,6 +136,7 @@ spec:
     umask 022
     export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
     python=/opt/python/cp313-cp313/bin/python
+    export PATH=/opt/python/cp313-cp313/bin:$PATH
     mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src /workspace/wheels "$FASE_OUTPUT_ROOT/wheels"
     "$python" -m pip install --disable-pip-version-check --no-cache-dir \
       'scikit-build-core==1.1.0' 'ninja==1.13.2' 'packaging==26.3'
