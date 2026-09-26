@@ -27,3 +27,5 @@ After the smoke Request succeeds, `kubectl apply -f tests/cache.yaml` verifies
 that a second Request resolves the existing Claim without starting more Jobs.
 `kubectl apply -f tests/rerun.yaml` asks for a forced rerun through the labeled
 `hello-package` Recipe.
+`kubectl apply --dry-run=server -n fase-beta -f tests/nightly.yaml` validates
+the RequestGenerator schema without installing a recurring job.
