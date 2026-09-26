@@ -14,12 +14,22 @@ kind: Request
 metadata:
   name: champion-rocm-sdk-gfx942
 spec:
-  rerun: 10
+  rerun: 11
   artifactSelector:
     matchLabels:
       name: rocm-gfx942-sdk
       version: "7.14.1"
       gpu: gfx942
+---
+apiVersion: skyw.top/v1beta1
+kind: Request
+metadata:
+  name: champion-glibc-pymc-verify
+spec:
+  artifactSelector:
+    matchLabels:
+      name: pymc-cpu-verified
+      version: "6.3.2"
 ---
 apiVersion: skyw.top/v1beta1
 kind: Request
