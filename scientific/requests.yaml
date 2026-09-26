@@ -8,3 +8,24 @@ spec:
       name: scipy
       version: "1.18.1"
       recipe: scipy-build-v1
+---
+apiVersion: skyw.top/v1beta1
+kind: Request
+metadata:
+  name: champion-glibc-pymc
+spec:
+  artifactSelector:
+    matchLabels:
+      name: pymc-glibc-wheels
+      version: "6.3.2"
+---
+apiVersion: skyw.top/v1beta1
+kind: Request
+metadata:
+  name: champion-rocm-sdk-gfx942
+spec:
+  artifactSelector:
+    matchLabels:
+      name: rocm-gfx942-sdk
+      version: "7.14.1"
+      gpu: gfx942
