@@ -49,8 +49,13 @@ spec:
     tar -xf "$FASE_INPUT_ROOT/source.tar.gz" -C /tmp/source
     src=$(find /tmp/source -mindepth 1 -maxdepth 1 -type d | head -1)
     test -n "$src"
+    build_args=()
+    if [ "$FASE_VAR_PACKAGE" = cloudpickle ]; then
+      "$python" -m pip install --disable-pip-version-check --no-cache-dir 'flit_core==3.12.0'
+      build_args+=(--no-build-isolation)
+    fi
     "$python" -m pip wheel --disable-pip-version-check --no-cache-dir --no-deps \
-      --wheel-dir "$FASE_OUTPUT_ROOT/wheels" "$src"
+      "${build_args[@]}" --wheel-dir "$FASE_OUTPUT_ROOT/wheels" "$src"
     FASE_WHEELS="$FASE_OUTPUT_ROOT/wheels" "$python" - <<'PY'
     import email.parser, glob, os, re, zipfile
     wheels = glob.glob(os.environ['FASE_WHEELS'] + '/*.whl')

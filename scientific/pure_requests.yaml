@@ -33,6 +33,7 @@ kind: Request
 metadata:
   name: champion-pure-cloudpickle
 spec:
+  rerun: 1
   artifactSelector:
     matchLabels:
       name: cloudpickle-glibc-wheels
