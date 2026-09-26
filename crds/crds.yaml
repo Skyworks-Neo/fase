@@ -1539,7 +1539,6 @@ spec:
                 nullable: true
                 type: string
               resolvedPlans:
-                default: []
                 items:
                   properties:
                     definition:
