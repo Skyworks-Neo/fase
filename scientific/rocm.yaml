@@ -114,7 +114,7 @@ spec:
     apt-get install -y -qq --no-install-recommends \
       ca-certificates curl make gfortran git ninja-build cmake g++ pkg-config xxd \
       automake libtool python3-venv python3-dev libegl1-mesa-dev texinfo \
-      bison flex zstd
+      bison flex zstd patch unzip zip wget jq
     tar -xf "$FASE_INPUT_ROOT/therock.tar.gz" -C /workspace/src/therock
     src=/workspace/src/therock
     test -f "$src/CMakeLists.txt"
