@@ -114,10 +114,11 @@ spec:
     src=/workspace/src/therock
     test -f "$src/CMakeLists.txt"
     cd "$src"
+    git config --global http.version HTTP/1.1
     INSTALL_PREFIX=/usr/local ./dockerfiles/install_pinned_patchelf.sh
     python3 -m venv /workspace/venv
     /workspace/venv/bin/python -m pip install --disable-pip-version-check -r requirements.txt
-    /workspace/venv/bin/python build_tools/fetch_sources.py
+    /workspace/venv/bin/python build_tools/fetch_sources.py --depth 1 --jobs 4
     cmake -S . -B /workspace/build -GNinja -DTHEROCK_AMDGPU_TARGETS=gfx942 \
       -DCMAKE_BUILD_TYPE=Release
     cmake --build /workspace/build --target therock-dist-rocm -j32
