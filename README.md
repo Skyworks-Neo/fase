@@ -8,9 +8,10 @@ The source manifests come from Fase commit `a327a9dcbd359e8cba61cf0f9c8e5816fe87
 The controller and helper images are pinned to the digests built by that commit.
 
 The cluster already has v1alpha1 data and a controller in `sep`. The three
-shared CRDs retain v1alpha1 as the storage version and serve v1beta1 too. The
-v1alpha1 schema accepts the v1beta1 fields so beta objects survive storage
-conversion. This compatibility layer is temporary and should be removed only
+shared CRDs serve both versions and use v1beta1 as the storage version. Their
+v1beta1 storage schemas also accept legacy fields, so old objects retain their
+data. Their v1alpha1 API schemas remain unchanged, so old clients do not see
+new fields. This compatibility layer is temporary and should be removed only
 after the old data and controller have been migrated.
 
 The `fase-ghcr-pull`, `fase-s3-read`, and `fase-s3-write` Secrets are copied
