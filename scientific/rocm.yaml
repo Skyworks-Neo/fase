@@ -236,7 +236,8 @@ spec:
       --bazel_options=--repo_env=ML_WHEEL_TYPE=release \
       --bazel_options=--repo_env=ROCM_PATH=/workspace/rocm \
       --bazel_options=--repo_env=TF_ROCM_AMDGPU_TARGETS=gfx942 \
-      --bazel_options=--jobs=32 --python_version=3.13 \
+      --bazel_options=--jobs=16 --bazel_options=--local_ram_resources=49152 \
+      --python_version=3.13 \
       --output_path=/workspace/wheels --verbose
     cp /workspace/wheels/*.whl "$FASE_OUTPUT_ROOT/wheels/"
     test "$(find "$FASE_OUTPUT_ROOT/wheels" -name '*.whl' | wc -l)" -ge 2
