@@ -24,6 +24,17 @@ spec:
 apiVersion: skyw.top/v1beta1
 kind: Request
 metadata:
+  name: champion-rocm-jax-source
+spec:
+  artifactSelector:
+    matchLabels:
+      name: rocm-jax-source
+      version: "0.11.1"
+      recipe: fetch-git-v1
+---
+apiVersion: skyw.top/v1beta1
+kind: Request
+metadata:
   name: champion-glibc-python
 spec:
   rerun: 1
