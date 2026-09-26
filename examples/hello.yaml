@@ -1,5 +1,5 @@
-apiVersion: skyw.top/v1alpha1
-kind: Step
+apiVersion: skyw.top/v1beta1
+kind: Task
 metadata:
   name: make-source
   labels: {capability: make-source}
@@ -11,14 +11,14 @@ spec:
       - {name: version, env: FASE_VAR_VERSION, required: true}
   outputs:
     artifacts:
-      - {name: source, path: source, format: directory}
+      - {name: source, path: source, kind: tree}
   script: |
     set -eu
     mkdir -p "$FASE_OUTPUT_ROOT/source"
     printf '%s\n' "$FASE_VAR_VERSION" > "$FASE_OUTPUT_ROOT/source/version"
 ---
-apiVersion: skyw.top/v1alpha1
-kind: Step
+apiVersion: skyw.top/v1beta1
+kind: Task
 metadata:
   name: make-package
   labels: {capability: make-package}
@@ -29,26 +29,26 @@ spec:
     variables:
       - {name: arch, env: FASE_VAR_ARCH, required: true}
     artifacts:
-      - {name: source, path: source, format: directory}
+      - {name: source, path: source, kind: tree}
   outputs:
     artifacts:
-      - {name: package, path: package, format: directory}
+      - {name: package, path: package, kind: tree}
   script: |
     set -eu
     mkdir -p "$FASE_OUTPUT_ROOT/package"
     printf '%s %s\n' "$INPUTS_SOURCE_LABELS_VERSION" "$FASE_VAR_ARCH" > "$FASE_OUTPUT_ROOT/package/result"
     cp "$FASE_INPUT_ROOT/source/version" "$FASE_OUTPUT_ROOT/package/version"
 ---
-apiVersion: skyw.top/v1alpha1
-kind: Plan
+apiVersion: skyw.top/v1beta1
+kind: Recipe
 metadata: {name: hello-source}
 spec:
   inputs:
     variables:
       - {name: version, type: string, required: true}
-  steps:
+  tasks:
     - name: make
-      stepSelector:
+      taskSelector:
         matchLabels: {capability: make-source}
       variables:
         version: {fromVariable: version}
@@ -57,13 +57,13 @@ spec:
   outputs:
     artifacts:
       - name: source
-        from: {step: make, artifact: source}
+        from: {task: make, artifact: source}
         labels:
           name: {value: hello-source}
           version: {fromVariable: version}
 ---
-apiVersion: skyw.top/v1alpha1
-kind: Plan
+apiVersion: skyw.top/v1beta1
+kind: Recipe
 metadata: {name: hello-package}
 spec:
   inputs:
@@ -73,27 +73,27 @@ spec:
       - name: source
         artifactSelector:
           matchLabels: {name: hello-source}
-  steps:
+  tasks:
     - name: package
-      stepSelector:
+      taskSelector:
         matchLabels: {capability: make-package}
       variables:
         arch: {fromVariable: arch}
       inputs:
         artifacts:
-          - {name: source, from: {planInput: source}}
+          - {name: source, from: {recipeInput: source}}
       outputs:
         - {name: package}
   outputs:
     artifacts:
       - name: package
-        from: {step: package, artifact: package}
+        from: {task: package, artifact: package}
         labels:
           name: {value: hello-package}
           version: {fromInput: {input: source, label: version}}
           arch: {fromVariable: arch}
 ---
-apiVersion: skyw.top/v1alpha1
+apiVersion: skyw.top/v1beta1
 kind: Request
 metadata: {name: hello-example}
 spec:

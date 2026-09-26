@@ -1,4 +1,4 @@
-apiVersion: skyw.top/v1alpha1
+apiVersion: skyw.top/v1beta1
 kind: RequestGenerator
 metadata: {name: hello-nightly}
 spec:
