@@ -136,7 +136,7 @@ spec:
     cmake -S . -B /workspace/build -GNinja -DTHEROCK_AMDGPU_TARGETS=gfx942 \
       -DTHEROCK_DIST_AMDGPU_TARGETS=gfx942 -DTHEROCK_TEST_AMDGPU_TARGETS=gfx942 \
       -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release
-    cmake --build /workspace/build --target therock-dist-rocm -j32
+    cmake --build /workspace/build --target therock-dist -j32
     test -d /workspace/build/dist/rocm/lib
     tar -C /workspace/build/dist/rocm -cf - . | zstd -T16 -9 \
       -o "$FASE_OUTPUT_ROOT/rocm-gfx942.tar.zst"
