@@ -123,6 +123,8 @@ spec:
     INSTALL_PREFIX=/usr/local ./dockerfiles/install_pinned_patchelf.sh
     python3 -m venv /workspace/venv
     /workspace/venv/bin/python -m pip install --disable-pip-version-check -r requirements.txt
+    export PATH="/workspace/venv/bin:$PATH"
+    meson --version
     for attempt in 1 2 3 4 5; do
       if /workspace/venv/bin/python build_tools/fetch_sources.py --depth 1 --jobs 2; then
         break
