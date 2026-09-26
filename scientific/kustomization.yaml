@@ -12,3 +12,4 @@ resources:
   - glibc_python.yaml
   - verify.yaml
   - requests.yaml
+  - pure_requests.yaml
