@@ -78,7 +78,7 @@ metadata: {name: glibc-numpy-build, labels: {capability: glibc-numpy-build}}
 spec:
   image: quay.io/pypa/manylinux_2_28_x86_64@sha256:407f771c51a2c3e83ebe5a7970b4289ead3a6db21d9b9c089168775cad11d328
   command: [/bin/bash]
-  nodeSelector: {kubernetes.io/hostname: node1}
+  nodeSelector: {kubernetes.io/hostname: worker1.adamanteye.cc}
   securityContext:
     runAsUser: 0
     runAsNonRoot: false
@@ -169,7 +169,7 @@ metadata: {name: glibc-scipy-build, labels: {capability: glibc-scipy-build}}
 spec:
   image: quay.io/pypa/manylinux_2_28_x86_64@sha256:407f771c51a2c3e83ebe5a7970b4289ead3a6db21d9b9c089168775cad11d328
   command: [/bin/bash]
-  nodeSelector: {kubernetes.io/hostname: node1}
+  nodeSelector: {kubernetes.io/hostname: worker1.adamanteye.cc}
   securityContext:
     runAsUser: 0
     runAsNonRoot: false

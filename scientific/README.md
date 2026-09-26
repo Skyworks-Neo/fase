@@ -20,6 +20,8 @@ Request follows after JAX CPU and the SDK have both completed. ROCm validation
 checks produced archives and wheels; this cluster has no AMD GPU for runtime
 testing.
 
-Large Tasks are pinned to `node1` with up to 32 CPUs, 64Gi memory, 300Gi
-ephemeral storage and a 24-hour controller timeout. Transfer staging volumes
+Large Tasks use `node1` or `worker1.adamanteye.cc`, with up to 32 CPUs, 64Gi
+memory, 300Gi ephemeral storage and a 24-hour controller timeout. The glibc
+NumPy, SciPy, LLVM, and JAX CPU builds run on `worker1.adamanteye.cc` so they
+can progress alongside the ROCm SDK build on `node1`. Transfer staging volumes
 are 32Gi; the artifact ceiling is 8Gi per artifact.

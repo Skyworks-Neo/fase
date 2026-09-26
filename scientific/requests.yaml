@@ -3,7 +3,7 @@ kind: Request
 metadata:
   name: champion-glibc-pymc
 spec:
-  rerun: 2
+  rerun: 3
   artifactSelector:
     matchLabels:
       name: pymc-glibc-wheels
