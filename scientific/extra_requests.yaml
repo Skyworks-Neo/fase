@@ -3,6 +3,7 @@ kind: Request
 metadata:
   name: champion-glibc-pandas
 spec:
+  rerun: 1
   artifactSelector:
     matchLabels:
       name: pandas-glibc-wheels
@@ -13,6 +14,7 @@ kind: Request
 metadata:
   name: champion-glibc-ml-dtypes
 spec:
+  rerun: 1
   artifactSelector:
     matchLabels:
       name: ml-dtypes-glibc-wheels

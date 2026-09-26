@@ -269,8 +269,8 @@ spec:
     mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src /workspace/wheels "$FASE_OUTPUT_ROOT/wheels"
     "$python" -m pip install --disable-pip-version-check --no-cache-dir \
       'setuptools==84.0.0' 'wheel==0.45.1' 'auditwheel==6.5.0'
-    "$python" -m pip install --no-index --no-deps "$FASE_INPUT_ROOT"/numpy-wheels/numpy-*.whl
-    "$python" -m pip install --no-index --no-deps "$FASE_INPUT_ROOT"/llvmlite-wheels/llvmlite-*.whl
+    "$python" -m pip install --no-index --no-deps --force-reinstall "$FASE_INPUT_ROOT"/numpy-wheels/numpy-*.whl
+    "$python" -m pip install --no-index --no-deps --force-reinstall "$FASE_INPUT_ROOT"/llvmlite-wheels/llvmlite-*.whl
     "$python" -c 'import llvmlite, numpy; assert llvmlite.__version__ == "0.49.0"; assert numpy.__version__ == "2.5.3"'
     tar -xf "$FASE_INPUT_ROOT/numba.tar.gz" -C /workspace/src
     cd /workspace/src/numba-0.67.0

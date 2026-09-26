@@ -79,11 +79,11 @@ spec:
     mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src "$FASE_OUTPUT_ROOT/wheels"
     "$python" -m pip install --disable-pip-version-check --no-cache-dir \
       'setuptools==84.0.0' 'wheel==0.45.1' 'Cython==3.2.4' 'versioneer[toml]==0.29'
-    "$python" -m pip install --no-index --no-deps "$FASE_INPUT_ROOT"/numpy-wheels/numpy-*.whl
-    "$python" -m pip install --no-index --no-deps "$FASE_INPUT_ROOT"/scipy-wheels/scipy-*.whl
-    "$python" -m pip install --no-index --no-deps "$FASE_INPUT_ROOT"/llvmlite-wheels/llvmlite-*.whl
-    "$python" -m pip install --no-index --no-deps "$FASE_INPUT_ROOT"/numba-wheels/numba-*.whl
-    "$python" -m pip install --no-index --no-deps "$FASE_INPUT_ROOT"/filelock-wheels/filelock-*.whl
+    "$python" -m pip install --no-index --no-deps --force-reinstall "$FASE_INPUT_ROOT"/numpy-wheels/numpy-*.whl
+    "$python" -m pip install --no-index --no-deps --force-reinstall "$FASE_INPUT_ROOT"/scipy-wheels/scipy-*.whl
+    "$python" -m pip install --no-index --no-deps --force-reinstall "$FASE_INPUT_ROOT"/llvmlite-wheels/llvmlite-*.whl
+    "$python" -m pip install --no-index --no-deps --force-reinstall "$FASE_INPUT_ROOT"/numba-wheels/numba-*.whl
+    "$python" -m pip install --no-index --no-deps --force-reinstall "$FASE_INPUT_ROOT"/filelock-wheels/filelock-*.whl
     "$python" -c 'import numpy, scipy, numba, filelock; print(numpy.__version__, scipy.__version__, numba.__version__)'
     tar -xf "$FASE_INPUT_ROOT/source.tar.gz" -C /workspace/src
     cd /workspace/src/pytensor-3.3.2
