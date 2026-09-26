@@ -43,7 +43,7 @@ spec:
       variables:
         url: {value: "https://github.com/ROCm/TheRock.git"}
         ref: {value: "therock-7.14.1"}
-        commit: {value: "5514fb2fc503d1b16e915235d84934afaba8a1f1"}
+        commit: {value: "f51dc6c91e0d3214f22853fd5cb3f96dbc7d2c4b"}
       outputs: [{name: source}]
   outputs:
     artifacts:
