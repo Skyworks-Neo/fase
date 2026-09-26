@@ -208,6 +208,7 @@ spec:
     set -Eeuo pipefail
     umask 022
     export PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+    export JAVA_TOOL_OPTIONS=-Djava.net.preferIPv6Addresses=true
     export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
     mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src/jax /workspace/rocm \
       /workspace/wheels "$FASE_OUTPUT_ROOT/wheels"
