@@ -1,0 +1,18 @@
+apiVersion: skyw.top/v1beta1
+kind: Request
+metadata:
+  name: hello-rerun-check
+  namespace: fase-beta
+spec:
+  artifactSelector:
+    matchLabels:
+      name: hello-package
+      version: "1.0"
+      arch: amd64
+  recipeSelector:
+    matchLabels:
+      capability: hello-package
+  rerun: 1
+  variables:
+    version: "1.0"
+    arch: amd64

@@ -64,7 +64,7 @@ spec:
 ---
 apiVersion: skyw.top/v1beta1
 kind: Recipe
-metadata: {name: hello-package}
+metadata: {name: hello-package, labels: {capability: hello-package}}
 spec:
   inputs:
     variables:
