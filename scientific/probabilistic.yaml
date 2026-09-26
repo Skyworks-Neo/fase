@@ -1,0 +1,218 @@
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata: {name: fetch-pytensor-3-3-2}
+spec:
+  tasks:
+    - name: fetch
+      taskSelector:
+        matchLabels: {capability: fetch-url}
+      variables:
+        url: {value: "https://files.pythonhosted.org/packages/9d/b8/c2b970faae918cdc42e8c7f8534ad91d0fd16dc695674802b42d9181b6e3/pytensor-3.3.2.tar.gz"}
+        sha256: {value: "6d340a333ff6bfb2f7962a1d7647ab64225518073b9f49f53590db763ed81fa2"}
+        version: {value: "3.3.2"}
+      outputs: [{name: source}]
+  outputs:
+    artifacts:
+      - name: source
+        from: {task: fetch, artifact: source}
+        labels:
+          name: {value: pytensor-source}
+          version: {value: "3.3.2"}
+          recipe: {value: fetch-v2}
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata: {name: fetch-pymc-6-3-2}
+spec:
+  tasks:
+    - name: fetch
+      taskSelector:
+        matchLabels: {capability: fetch-url}
+      variables:
+        url: {value: "https://files.pythonhosted.org/packages/dc/2d/f8a4d6358fe5398cf3b270da3eb0237ef7cbc115e48163c94704ac3f1621/pymc-6.3.2.tar.gz"}
+        sha256: {value: "3cd58e55249b3650786e2c717078de5595811e17187a666868072d15e3a931a1"}
+        version: {value: "6.3.2"}
+      outputs: [{name: source}]
+  outputs:
+    artifacts:
+      - name: source
+        from: {task: fetch, artifact: source}
+        labels:
+          name: {value: pymc-source}
+          version: {value: "6.3.2"}
+          recipe: {value: fetch-v2}
+---
+apiVersion: skyw.top/v1beta1
+kind: Task
+metadata: {name: pytensor-source-build, labels: {capability: pytensor-source-build}}
+spec:
+  image: quay.io/pypa/manylinux_2_28_x86_64@sha256:407f771c51a2c3e83ebe5a7970b4289ead3a6db21d9b9c089168775cad11d328
+  command: [/bin/bash]
+  nodeSelector: {kubernetes.io/hostname: node1}
+  securityContext:
+    runAsUser: 0
+    runAsNonRoot: false
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    seccompProfile: {type: RuntimeDefault}
+  resources:
+    requests: {cpu: "8", memory: 16Gi, ephemeral-storage: 32Gi}
+    limits: {cpu: "32", memory: 64Gi, ephemeral-storage: 300Gi}
+  workspace: {taskSizeLimit: 300Gi, inputSizeLimit: 32Gi, outputSizeLimit: 32Gi, transferSizeLimit: 32Gi}
+  inputs:
+    artifacts:
+      - {name: source, path: source.tar.gz, kind: file}
+      - {name: numpy, path: numpy-wheels, kind: tree}
+      - {name: scipy, path: scipy-wheels, kind: tree}
+  outputs:
+    artifacts:
+      - {name: wheels, path: wheels, kind: tree}
+      - {name: report, path: pytensor-build.txt, kind: file}
+  script: |
+    set -Eeuo pipefail
+    export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
+    python=/opt/python/cp313-cp313/bin/python
+    mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src "$FASE_OUTPUT_ROOT/wheels"
+    "$python" -m pip install --disable-pip-version-check --no-cache-dir \
+      'setuptools==84.0.0' 'wheel==0.45.1' 'Cython==3.2.4' 'versioneer[toml]==0.29'
+    "$python" -m pip install --no-index --no-deps "$FASE_INPUT_ROOT"/numpy-wheels/numpy-*.whl
+    "$python" -m pip install --no-index --no-deps "$FASE_INPUT_ROOT"/scipy-wheels/scipy-*.whl
+    tar -xf "$FASE_INPUT_ROOT/source.tar.gz" -C /workspace/src
+    cd /workspace/src/pytensor-3.3.2
+    "$python" -m pip wheel --disable-pip-version-check --no-deps --no-build-isolation \
+      --wheel-dir "$FASE_OUTPUT_ROOT/wheels" .
+    test "$(find "$FASE_OUTPUT_ROOT/wheels" -name 'pytensor-*.whl' | wc -l)" -eq 1
+    unzip -t "$FASE_OUTPUT_ROOT"/wheels/pytensor-*.whl >/dev/null
+    {
+      printf 'PyTensor 3.3.2 built from source with source-built NumPy and SciPy\n'
+      sha256sum "$FASE_OUTPUT_ROOT"/wheels/pytensor-*.whl
+    } > "$FASE_OUTPUT_ROOT/pytensor-build.txt"
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata: {name: pytensor-source-build}
+spec:
+  inputs:
+    artifacts:
+      - name: source
+        artifactSelector:
+          matchLabels: {name: pytensor-source, version: "3.3.2", recipe: fetch-v2}
+      - name: numpy
+        artifactSelector:
+          matchLabels: {name: numpy-glibc-wheels, version: "2.5.3"}
+      - name: scipy
+        artifactSelector:
+          matchLabels: {name: scipy-glibc-wheels, version: "1.18.1"}
+  tasks:
+    - name: build
+      taskSelector:
+        matchLabels: {capability: pytensor-source-build}
+      inputs:
+        artifacts:
+          - {name: source, from: {recipeInput: source}}
+          - {name: numpy, from: {recipeInput: numpy}}
+          - {name: scipy, from: {recipeInput: scipy}}
+      outputs: [{name: wheels}, {name: report}]
+  outputs:
+    artifacts:
+      - name: wheels
+        from: {task: build, artifact: wheels}
+        labels:
+          name: {value: pytensor-glibc-wheels}
+          version: {value: "3.3.2"}
+          python: {value: cp313}
+          libc: {value: glibc}
+          arch: {value: amd64}
+      - name: report
+        from: {task: build, artifact: report}
+        labels:
+          name: {value: pytensor-build-report}
+          version: {value: "3.3.2"}
+---
+apiVersion: skyw.top/v1beta1
+kind: Task
+metadata: {name: pymc-source-build, labels: {capability: pymc-source-build}}
+spec:
+  image: quay.io/pypa/manylinux_2_28_x86_64@sha256:407f771c51a2c3e83ebe5a7970b4289ead3a6db21d9b9c089168775cad11d328
+  command: [/bin/bash]
+  nodeSelector: {kubernetes.io/hostname: node1}
+  securityContext:
+    runAsUser: 0
+    runAsNonRoot: false
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    seccompProfile: {type: RuntimeDefault}
+  resources:
+    requests: {cpu: "8", memory: 16Gi, ephemeral-storage: 32Gi}
+    limits: {cpu: "32", memory: 64Gi, ephemeral-storage: 300Gi}
+  workspace: {taskSizeLimit: 300Gi, inputSizeLimit: 32Gi, outputSizeLimit: 32Gi, transferSizeLimit: 32Gi}
+  inputs:
+    artifacts:
+      - {name: source, path: source.tar.gz, kind: file}
+      - {name: pytensor, path: pytensor-wheels, kind: tree}
+      - {name: jax, path: jax-wheels, kind: tree}
+  outputs:
+    artifacts:
+      - {name: wheels, path: wheels, kind: tree}
+      - {name: report, path: pymc-build.txt, kind: file}
+  script: |
+    set -Eeuo pipefail
+    export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
+    python=/opt/python/cp313-cp313/bin/python
+    mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src "$FASE_OUTPUT_ROOT/wheels"
+    "$python" -m pip install --disable-pip-version-check --no-cache-dir \
+      'setuptools==84.0.0' 'wheel==0.45.1' 'versioneer[toml]==0.29'
+    test -s "$FASE_INPUT_ROOT"/pytensor-wheels/pytensor-*.whl
+    test -s "$FASE_INPUT_ROOT"/jax-wheels/jaxlib-*.whl
+    test -s "$FASE_INPUT_ROOT"/jax-wheels/jax-*.whl
+    tar -xf "$FASE_INPUT_ROOT/source.tar.gz" -C /workspace/src
+    cd /workspace/src/pymc-6.3.2
+    "$python" -m pip wheel --disable-pip-version-check --no-deps --no-build-isolation \
+      --wheel-dir "$FASE_OUTPUT_ROOT/wheels" .
+    test "$(find "$FASE_OUTPUT_ROOT/wheels" -name 'pymc-*.whl' | wc -l)" -eq 1
+    unzip -t "$FASE_OUTPUT_ROOT"/wheels/pymc-*.whl >/dev/null
+    {
+      printf 'PyMC 6.3.2 built from source with PyTensor and JAX source artifacts present\n'
+      sha256sum "$FASE_OUTPUT_ROOT"/wheels/pymc-*.whl
+    } > "$FASE_OUTPUT_ROOT/pymc-build.txt"
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata: {name: pymc-source-build}
+spec:
+  inputs:
+    artifacts:
+      - name: source
+        artifactSelector:
+          matchLabels: {name: pymc-source, version: "6.3.2", recipe: fetch-v2}
+      - name: pytensor
+        artifactSelector:
+          matchLabels: {name: pytensor-glibc-wheels, version: "3.3.2"}
+      - name: jax
+        artifactSelector:
+          matchLabels: {name: jax-cpu-wheels, version: "0.11.1"}
+  tasks:
+    - name: build
+      taskSelector:
+        matchLabels: {capability: pymc-source-build}
+      inputs:
+        artifacts:
+          - {name: source, from: {recipeInput: source}}
+          - {name: pytensor, from: {recipeInput: pytensor}}
+          - {name: jax, from: {recipeInput: jax}}
+      outputs: [{name: wheels}, {name: report}]
+  outputs:
+    artifacts:
+      - name: wheels
+        from: {task: build, artifact: wheels}
+        labels:
+          name: {value: pymc-glibc-wheels}
+          version: {value: "6.3.2"}
+          python: {value: cp313}
+          libc: {value: glibc}
+          arch: {value: amd64}
+      - name: report
+        from: {task: build, artifact: report}
+        labels:
+          name: {value: pymc-build-report}
+          version: {value: "6.3.2"}

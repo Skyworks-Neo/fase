@@ -1,0 +1,116 @@
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata: {name: fetch-jax-source-0-11-1}
+spec:
+  tasks:
+    - name: fetch
+      taskSelector:
+        matchLabels: {capability: fetch-url}
+      variables:
+        url: {value: "https://codeload.github.com/jax-ml/jax/tar.gz/refs/tags/jax-v0.11.1"}
+        sha256: {value: "ef9826243bcb8eae6d39ac71580bb39154fbeca51b40c2371aab5db1a797dfb4"}
+        version: {value: "0.11.1"}
+      outputs:
+        - {name: source}
+  outputs:
+    artifacts:
+      - name: source
+        from: {task: fetch, artifact: source}
+        labels:
+          name: {value: jax-source}
+          version: {value: "0.11.1"}
+          recipe: {value: fetch-v2}
+          kind: {value: source}
+---
+apiVersion: skyw.top/v1beta1
+kind: Task
+metadata:
+  name: jax-cpu-source-build
+  labels: {capability: jax-cpu-source-build}
+spec:
+  image: quay.io/pypa/manylinux_2_28_x86_64@sha256:407f771c51a2c3e83ebe5a7970b4289ead3a6db21d9b9c089168775cad11d328
+  command: [/bin/bash]
+  nodeSelector: {kubernetes.io/hostname: node1}
+  securityContext:
+    runAsUser: 0
+    runAsNonRoot: false
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    seccompProfile: {type: RuntimeDefault}
+  resources:
+    requests: {cpu: "32", memory: 64Gi, ephemeral-storage: 200Gi}
+    limits: {cpu: "32", memory: 64Gi, ephemeral-storage: 300Gi}
+  workspace:
+    taskSizeLimit: 300Gi
+    inputSizeLimit: 32Gi
+    outputSizeLimit: 32Gi
+    transferSizeLimit: 32Gi
+  inputs:
+    artifacts:
+      - {name: source, path: source.tar.gz, kind: file}
+  outputs:
+    artifacts:
+      - {name: wheels, path: wheels, kind: tree}
+      - {name: report, path: jax-cpu-build.txt, kind: file}
+  script: |
+    set -Eeuo pipefail
+    export HOME=/workspace/home
+    export TMPDIR=/workspace/tmp
+    export XDG_CACHE_HOME=/workspace/cache
+    mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src "$FASE_OUTPUT_ROOT/wheels"
+    tar -xf "$FASE_INPUT_ROOT/source.tar.gz" -C /workspace/src
+    cd /workspace/src/jax-0.11.1
+    python=/opt/python/cp313-cp313/bin/python
+    "$python" --version
+    "$python" -m pip install --disable-pip-version-check --no-cache-dir 'setuptools==84.0.0' 'wheel==0.45.1'
+    "$python" build/build.py build --wheels=jaxlib --python_version=3.13 \
+      --bazel_options=--jobs=32 --bazel_options=--local_ram_resources=49152 --verbose
+    "$python" -m pip wheel --disable-pip-version-check --no-deps --no-build-isolation \
+      --wheel-dir "$FASE_OUTPUT_ROOT/wheels" .
+    cp dist/jaxlib-0.11.1-*.whl "$FASE_OUTPUT_ROOT/wheels/"
+    test "$(find "$FASE_OUTPUT_ROOT/wheels" -maxdepth 1 -name '*.whl' | wc -l)" -eq 2
+    for wheel in "$FASE_OUTPUT_ROOT"/wheels/*.whl; do
+      unzip -t "$wheel" >/dev/null
+    done
+    {
+      printf 'JAX 0.11.1 and jaxlib 0.11.1, both built from jax-v0.11.1 source\n'
+      printf 'builder: manylinux_2_28_x86_64, Python 3.13, CPU\n'
+      sha256sum "$FASE_OUTPUT_ROOT"/wheels/*.whl
+    } > "$FASE_OUTPUT_ROOT/jax-cpu-build.txt"
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata: {name: jax-cpu-source-build}
+spec:
+  inputs:
+    artifacts:
+      - name: source
+        artifactSelector:
+          matchLabels: {name: jax-source, version: "0.11.1", recipe: fetch-v2}
+  tasks:
+    - name: build
+      taskSelector:
+        matchLabels: {capability: jax-cpu-source-build}
+      inputs:
+        artifacts:
+          - {name: source, from: {recipeInput: source}}
+      outputs:
+        - {name: wheels}
+        - {name: report}
+  outputs:
+    artifacts:
+      - name: wheels
+        from: {task: build, artifact: wheels}
+        labels:
+          name: {value: jax-cpu-wheels}
+          version: {value: "0.11.1"}
+          python: {value: cp313}
+          libc: {value: glibc}
+          platform: {value: manylinux_2_28_x86_64}
+          arch: {value: amd64}
+          source: {value: jax-v0.11.1}
+      - name: report
+        from: {task: build, artifact: report}
+        labels:
+          name: {value: jax-cpu-build-report}
+          version: {value: "0.11.1"}

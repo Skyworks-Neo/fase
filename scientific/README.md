@@ -11,6 +11,12 @@ Task unpacks them into its 300Gi workspace before running the original build
 script. Source tarballs are fetched with pinned SHA256 digests. Native kernel
 building and package publication are outside this build graph.
 
-Large Tasks are pinned to `node1` with 32 CPUs, 64Gi memory, 300Gi ephemeral
-storage and a 24-hour controller timeout. Transfer staging volumes are 32Gi;
-the artifact ceiling is 8Gi per file.
+The new glibc line defines source builds of OpenBLAS, NumPy, SciPy, JAX and
+jaxlib, PyTensor and PyMC. The ROCm line pins TheRock 7.14.1 and the ROCm/JAX
+0.11.1 fork, targeting gfx942. ROCm validation checks produced archives and
+wheels; this cluster has no AMD GPU for runtime testing. These definitions
+have no Request yet while the musl chain is running.
+
+Large Tasks are pinned to `node1` with up to 32 CPUs, 64Gi memory, 300Gi
+ephemeral storage and a 24-hour controller timeout. Transfer staging volumes
+are 32Gi; the artifact ceiling is 8Gi per artifact.
