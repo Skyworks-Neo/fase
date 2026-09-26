@@ -107,7 +107,7 @@ spec:
           matchLabels: {name: pytensor-source, version: "3.3.2", recipe: fetch-v2}
       - name: numpy
         artifactSelector:
-          matchLabels: {name: numpy-glibc-wheels, version: "2.5.3"}
+          matchLabels: {name: numpy-glibc-wheels, version: "2.5.3", source-deps: fase-openblas}
       - name: scipy
         artifactSelector:
           matchLabels: {name: scipy-glibc-wheels, version: "1.18.1"}

@@ -80,7 +80,7 @@ spec:
           matchLabels: {name: pandas-source, version: "3.0.6", recipe: fetch-v2}
       - name: numpy
         artifactSelector:
-          matchLabels: {name: numpy-glibc-wheels, version: "2.5.3"}
+          matchLabels: {name: numpy-glibc-wheels, version: "2.5.3", source-deps: fase-openblas}
   tasks:
     - name: build
       taskSelector:
@@ -97,7 +97,7 @@ spec:
         labels:
           name: {value: pandas-glibc-wheels}
           version: {value: "3.0.6"}
-          source-deps: {value: fase-glibc}
+          source-deps: {value: fase-openblas}
           python: {value: cp313}
           libc: {value: glibc}
           arch: {value: amd64}
@@ -166,7 +166,7 @@ spec:
           matchLabels: {name: ml_dtypes-source, version: "0.6.0", recipe: fetch-v1}
       - name: numpy
         artifactSelector:
-          matchLabels: {name: numpy-glibc-wheels, version: "2.5.3"}
+          matchLabels: {name: numpy-glibc-wheels, version: "2.5.3", source-deps: fase-openblas}
   tasks:
     - name: build
       taskSelector:
@@ -183,6 +183,7 @@ spec:
         labels:
           name: {value: ml-dtypes-glibc-wheels}
           version: {value: "0.6.0"}
+          source-deps: {value: fase-openblas}
           python: {value: cp313}
           libc: {value: glibc}
           arch: {value: amd64}

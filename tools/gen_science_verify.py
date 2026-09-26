@@ -21,7 +21,11 @@ CORE = {
     "pymc": ("pymc-glibc-wheels", "6.3.2"),
     "jax": ("jax-cpu-wheels", "0.11.1"),
 }
-EXTRA_INPUT_LABELS = {"pandas": {"source-deps": "fase-glibc"}}
+EXTRA_INPUT_LABELS = {
+    "numpy": {"source-deps": "fase-openblas"},
+    "pandas": {"source-deps": "fase-openblas"},
+    "ml-dtypes": {"source-deps": "fase-openblas"},
+}
 
 
 class Literal(str):

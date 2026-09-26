@@ -101,7 +101,11 @@ spec:
     set -Eeuo pipefail
     umask 022
     export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
-    export PKG_CONFIG_PATH="$FASE_INPUT_ROOT/openblas/lib/pkgconfig"
+    mkdir -p /workspace/pkgconfig
+    sed "s|/out/openblas|$FASE_INPUT_ROOT/openblas|g" \
+      "$FASE_INPUT_ROOT/openblas/lib/pkgconfig/openblas.pc" > /workspace/pkgconfig/openblas.pc
+    export PKG_CONFIG_PATH=/workspace/pkgconfig
+    test "$(pkg-config --variable=libdir openblas)" = "$FASE_INPUT_ROOT/openblas/lib"
     export LD_LIBRARY_PATH="$FASE_INPUT_ROOT/openblas/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     export NINJAFLAGS=-j32
     python=/opt/python/cp313-cp313/bin/python
@@ -152,6 +156,7 @@ spec:
         labels:
           name: {value: numpy-glibc-wheels}
           version: {value: "2.5.3"}
+          source-deps: {value: fase-openblas}
           python: {value: cp313}
           platform: {value: manylinux_2_28_x86_64}
           libc: {value: glibc}
@@ -193,7 +198,11 @@ spec:
     set -Eeuo pipefail
     umask 022
     export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
-    export PKG_CONFIG_PATH="$FASE_INPUT_ROOT/openblas/lib/pkgconfig"
+    mkdir -p /workspace/pkgconfig
+    sed "s|/out/openblas|$FASE_INPUT_ROOT/openblas|g" \
+      "$FASE_INPUT_ROOT/openblas/lib/pkgconfig/openblas.pc" > /workspace/pkgconfig/openblas.pc
+    export PKG_CONFIG_PATH=/workspace/pkgconfig
+    test "$(pkg-config --variable=libdir openblas)" = "$FASE_INPUT_ROOT/openblas/lib"
     export LD_LIBRARY_PATH="$FASE_INPUT_ROOT/openblas/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     export NINJAFLAGS=-j32
     python=/opt/python/cp313-cp313/bin/python
@@ -234,7 +243,7 @@ spec:
           matchLabels: {name: openblas-glibc, version: "0.3.34"}
       - name: numpy
         artifactSelector:
-          matchLabels: {name: numpy-glibc-wheels, version: "2.5.3"}
+          matchLabels: {name: numpy-glibc-wheels, version: "2.5.3", source-deps: fase-openblas}
   tasks:
     - name: build
       taskSelector:
