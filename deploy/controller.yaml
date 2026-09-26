@@ -14,23 +14,26 @@ metadata:
   name: fase-controller
 rules:
   - apiGroups: [skyw.top]
-    resources: [requests, requestgenerators, plans, steps]
+    resources: [requests, requestgenerators, recipes, tasks, runs, artifacts, artifactclaims]
     verbs: [get, list]
   - apiGroups: [skyw.top]
-    resources: [requests]
+    resources: [requests, runs]
     verbs: [create]
   - apiGroups: [skyw.top]
-    resources: [requests/status, requestgenerators/status]
+    resources: [requests/status, runs/status, requestgenerators/status]
     verbs: [patch]
-  - apiGroups: [skyw.top]
-    resources: [artifacts]
-    verbs: [get, list]
   - apiGroups: [batch]
     resources: [jobs]
     verbs: [create, get]
   - apiGroups: [""]
     resources: [configmaps]
     verbs: [create, get]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -50,7 +53,7 @@ metadata:
   name: fase-output
 rules:
   - apiGroups: [skyw.top]
-    resources: [artifacts]
+    resources: [artifacts, artifactclaims]
     verbs: [create, get]
   - apiGroups: [""]
     resources: [configmaps]
@@ -70,6 +73,33 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: fase-output
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: fase-artifactclaim-integrity
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [skyw.top]
+        apiVersions: [v1beta1]
+        operations: [CREATE, UPDATE]
+        resources: [artifactclaims]
+        scope: Namespaced
+  validations:
+    - expression: "request.operation != 'CREATE' || request.userInfo.username == 'system:serviceaccount:' + request.namespace + ':fase-output'"
+      message: Only the Fase output service account may create ArtifactClaims
+    - expression: "request.operation != 'UPDATE' || (object.metadata.labels == oldObject.metadata.labels && object.spec == oldObject.spec)"
+      message: ArtifactClaim labels and spec are immutable
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: fase-artifactclaim-integrity
+spec:
+  policyName: fase-artifactclaim-integrity
+  validationActions: [Deny]
 ---
 apiVersion: apps/v1
 kind: Deployment
