@@ -1,17 +1,11 @@
 # Scientific compilation champion
 
-`legacy.yaml` is generated from the source build recipes in the historical
-`../fase-crd` checkout by `../tools/port_legacy_science.py`. Its Tasks and
-Recipes bring the musl Python 3.13.15, OpenBLAS 0.3.34, NumPy 2.5.3, SciPy
-1.18.1, and ml_dtypes 0.6.0 dependency graph into v1beta1. The initial
-Request targets SciPy; ml_dtypes follows after the shared NumPy chain succeeds.
+`sources.yaml` is generated from the pinned source fetches in the historical
+`../fase-crd` checkout by `../tools/port_science_sources.py`. It retains only
+the source tarballs needed by the glibc builds, with pinned SHA256 digests.
+Native kernel building and package publication are outside this build graph.
 
-The historical `.tar.zst` packages remain `file` artifacts. Each consuming
-Task unpacks them into its 300Gi workspace before running the original build
-script. Source tarballs are fetched with pinned SHA256 digests. Native kernel
-building and package publication are outside this build graph.
-
-The new glibc line defines source builds of CPython, OpenBLAS, NumPy, SciPy,
+The glibc line defines source builds of CPython, OpenBLAS, NumPy, SciPy,
 LLVM 22, llvmlite, Numba, pandas, ml_dtypes, JAX and jaxlib, PyTensor and PyMC.
 `pure-lock.json` pins the remaining Python runtime sdists by URL and SHA256;
 `gen_pure_science.py` creates their fetch and wheel Recipes. The offline

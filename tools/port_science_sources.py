@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Port the source-built musl scientific stack into v1beta1 manifests.
-
-Reads the historical manifests without modifying that repository. Archived
-outputs remain file artifacts; consumers explicitly unpack them in /workspace.
-"""
+"""Port only the pinned source fetches needed by glibc science builds."""
 
 from pathlib import Path
 import copy
@@ -12,14 +8,12 @@ import sys
 import yaml
 
 
-GROUPS = (
-    "sources", "tools", "musl", "binutils", "gcc", "llvm", "python",
-    "openblas", "numpy", "scipy", "mldtypes",
-)
-EXCLUDE_TASKS = {"fetch-gitlab-archive", "toolcheck", "toolcheck-plan"}
-EXCLUDE_RECIPES = {
-    "fetch-fase-source", "toolcheck", "fetch-jax-0-11-2",
-    "fetch-jaxlib-manylinux-0-11-2", "fetch-xla-stacktrace-header-91888df6",
+GROUPS = ("sources",)
+INCLUDE_TASKS = {"fetch-url"}
+INCLUDE_RECIPES = {
+    "fetch-python-3-13-15", "fetch-openblas-0-3-34", "fetch-numpy-2-5-3",
+    "fetch-scipy-1-18-1", "fetch-ml-dtypes-0-6-0",
+    "fetch-llvm-project-22-1-6",
 }
 
 
@@ -116,9 +110,9 @@ def main():
                     continue
                 name = item.get("metadata", {}).get("name")
                 kind = item.get("kind")
-                if kind == "Step" and name not in EXCLUDE_TASKS:
+                if kind == "Step" and name in INCLUDE_TASKS:
                     documents.append(convert_task(copy.deepcopy(item)))
-                elif kind == "Plan" and name not in EXCLUDE_RECIPES:
+                elif kind == "Plan" and name in INCLUDE_RECIPES:
                     documents.append(convert_recipe(copy.deepcopy(item)))
     for item in documents:
         item["apiVersion"] = "skyw.top/v1beta1"

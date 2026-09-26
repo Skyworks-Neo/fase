@@ -1,0 +1,254 @@
+apiVersion: skyw.top/v1beta1
+kind: Task
+metadata:
+  name: fetch-url
+  labels:
+    capability: fetch-url
+spec:
+  image: curlimages/curl:8.19.0
+  imagePullSecrets:
+  - name: fase-ghcr-pull
+  - name: fase-registry-pull
+  command:
+  - /bin/sh
+  resources:
+    requests:
+      cpu: 200m
+      memory: 128Mi
+      ephemeral-storage: 256Mi
+    limits:
+      cpu: '2'
+      memory: 1Gi
+      ephemeral-storage: 4Gi
+  inputs:
+    variables:
+    - name: url
+      env: FASE_VAR_URL
+      required: true
+    - name: sha256
+      env: FASE_VAR_SHA256
+      required: true
+    - name: version
+      env: FASE_VAR_VERSION
+      required: true
+  outputs:
+    artifacts:
+    - name: source
+      path: source
+      kind: file
+  script: "set -eu\n\ncase \"$FASE_VAR_URL\" in\n  */) echo \"url must name a file, not a directory: $FASE_VAR_URL\"\
+    \ >&2; exit 1 ;;\nesac\n\ncurl --fail --location --silent --show-error \\\n     --retry 5 --retry-delay 3 --retry-all-errors\
+    \ \\\n     --connect-timeout 30 --max-time 1800 \\\n     --output \"$FASE_OUTPUT_ROOT/source\" \\\n     \"$FASE_VAR_URL\"\
+    \n\nprintf '%s  %s\\n' \"$FASE_VAR_SHA256\" \"$FASE_OUTPUT_ROOT/source\" | sha256sum -c -\n\nprintf 'fetched\
+    \ %s version=%s bytes=%s\\n' \\\n  \"$FASE_VAR_URL\" \"$FASE_VAR_VERSION\" \"$(wc -c < \"$FASE_OUTPUT_ROOT/source\"\
+    )\" >&2\n"
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-llvm-project-22-1-6
+spec:
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: llvm-project-source
+        version:
+          value: 22.1.6
+        recipe:
+          value: fetch-v1
+        kind:
+          value: source
+  tasks:
+  - name: fetch
+    variables:
+      url:
+        value: https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.6/llvm-project-22.1.6.src.tar.xz
+      sha256:
+        value: 6e0b376a1f6d9873e7dfb09ae6e04b9c7024400f01733fa4c29be69d5c138bc2
+      version:
+        value: 22.1.6
+    outputs:
+    - name: source
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-python-3-13-15
+spec:
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: python-source
+        version:
+          value: 3.13.15
+        recipe:
+          value: fetch-v1
+        kind:
+          value: source
+  tasks:
+  - name: fetch
+    variables:
+      url:
+        value: https://mirrors.tuna.tsinghua.edu.cn/python/3.13.15/Python-3.13.15.tar.xz
+      sha256:
+        value: 1e66a7945a48390ee4c2a4268a0e4185884059a13c4aab6d148aa208deea4a76
+      version:
+        value: 3.13.15
+    outputs:
+    - name: source
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-openblas-0-3-34
+spec:
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: openblas-source
+        version:
+          value: 0.3.34
+        recipe:
+          value: fetch-v1
+        kind:
+          value: source
+  tasks:
+  - name: fetch
+    variables:
+      url:
+        value: https://github.com/OpenMathLib/OpenBLAS/releases/download/v0.3.34/OpenBLAS-0.3.34.tar.gz
+      sha256:
+        value: cd7e129868320cc2d033afa920e31202dfe0b8066a5b66661900ccc0f197dfed
+      version:
+        value: 0.3.34
+    outputs:
+    - name: source
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-numpy-2-5-3
+spec:
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: numpy-source
+        version:
+          value: 2.5.3
+        recipe:
+          value: fetch-v1
+        kind:
+          value: source
+  tasks:
+  - name: fetch
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/13/01/11703282db468b85f6f7b8c7f22d058de5970d5c7e60a3a8aaa313c3de36/numpy-2.5.3.tar.gz
+      sha256:
+        value: df2d5874ff183595a4ba404edd04f6bd9b5505c1d7708573f6a6c17489a67563
+      version:
+        value: 2.5.3
+    outputs:
+    - name: source
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-scipy-1-18-1
+spec:
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: scipy-source
+        version:
+          value: 1.18.1
+        recipe:
+          value: fetch-v1
+        kind:
+          value: source
+  tasks:
+  - name: fetch
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/7e/74/66de6258867beb2ef08f35f9f2ac017a52cacd5081714d239ff1a442d458/scipy-1.18.1.tar.gz
+      sha256:
+        value: 52c4b7422442aba924d03ad4019852b08a92e64ea187b933135687bfe2747307
+      version:
+        value: 1.18.1
+    outputs:
+    - name: source
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-ml-dtypes-0-6-0
+spec:
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: ml_dtypes-source
+        version:
+          value: 0.6.0
+        recipe:
+          value: fetch-v1
+        kind:
+          value: source
+  tasks:
+  - name: fetch
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/12/72/307d7c4bd0600601c7133fba5cb78af7db968152951c1cd473abb1cda782/ml_dtypes-0.6.0.tar.gz
+      sha256:
+        value: 5e60251d32ced5598972e4d5e06a2f044341f9291402551a3f6f0ec44f9299b0
+      version:
+        value: 0.6.0
+    outputs:
+    - name: source
+    taskSelector:
+      matchLabels:
+        capability: fetch-url

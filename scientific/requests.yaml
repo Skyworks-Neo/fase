@@ -1,17 +1,6 @@
 apiVersion: skyw.top/v1beta1
 kind: Request
 metadata:
-  name: champion-musl-scipy
-spec:
-  artifactSelector:
-    matchLabels:
-      name: scipy
-      version: "1.18.1"
-      recipe: scipy-build-v1
----
-apiVersion: skyw.top/v1beta1
-kind: Request
-metadata:
   name: champion-glibc-pymc
 spec:
   rerun: 1
