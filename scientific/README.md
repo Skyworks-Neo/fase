@@ -13,6 +13,13 @@ verification Recipe combines 31 wheel/prefix artifacts, installs with
 `--no-index`, then exercises SciPy linear algebra, Numba, JAX CPU, PyTensor,
 and PyMC.
 
+On 2026-09-26, `champion-glibc-pymc-verify` succeeded in Run
+`run-ba70d8b70258f8fccf119f11e6feaffd`. All 31 artifacts installed
+offline, `pip check` found no broken requirements, and the SciPy, Numba,
+JAX CPU, PyTensor, and PyMC smoke checks passed. The tested versions include
+CPython 3.13.15, OpenBLAS, NumPy 2.5.3, SciPy 1.18.1, Numba 0.67.0,
+JAX and jaxlib 0.11.1, PyTensor 3.3.2, and PyMC 6.3.2.
+
 The pandas and ml_dtypes Requests start after the shared glibc NumPy artifact
 is available.
 
