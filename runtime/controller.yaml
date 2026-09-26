@@ -182,7 +182,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: controller
-        image: ghcr.io/skyworks-neo/fase@sha256:46881f69a74f198a2a62043d22e65f1f2204dfcb2686960e63501c9c5e563f0c
+        image: ghcr.io/skyworks-neo/fase@sha256:a9ccdd7f82947e358c2387910712eb5b28517cab7f5c8c3e9eb46bf33ef5b5e3
         imagePullPolicy: IfNotPresent
         args:
         - run
@@ -207,7 +207,7 @@ spec:
             fieldRef:
               fieldPath: metadata.namespace
         - name: FASE_HELPER_IMAGE
-          value: ghcr.io/skyworks-neo/fase-helper@sha256:443904093392fd2517513640b5280fe58d484ea713cb81968ed3a99932a0e7c0
+          value: ghcr.io/skyworks-neo/fase-helper@sha256:498ab2d8de20ab0c197c04b56d1920c11e3c9eb9dce15599eb54da4c0af4bc5e
         - name: FASE_OUTPUT_SERVICE_ACCOUNT
           value: fase-output
         - name: FASE_S3_BUCKET
