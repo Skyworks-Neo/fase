@@ -91,6 +91,7 @@ spec:
   script: |
     set -Eeuo pipefail
     umask 022
+    export PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
     export HOME=/workspace/home TMPDIR=/workspace/tmp
     python=/opt/python/cp313-cp313/bin/python
     mkdir -p "$HOME" "$TMPDIR" /workspace/src "$FASE_OUTPUT_ROOT/llvm"
@@ -174,6 +175,7 @@ spec:
   script: |
     set -Eeuo pipefail
     umask 022
+    export PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
     export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
     export CMAKE_PREFIX_PATH="$FASE_INPUT_ROOT/llvm"
     export CMAKE_ARGS="-DLLVM_DIR=$FASE_INPUT_ROOT/llvm/lib/cmake/llvm"
@@ -264,6 +266,7 @@ spec:
   script: |
     set -Eeuo pipefail
     umask 022
+    export PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
     export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
     python=/opt/python/cp313-cp313/bin/python
     mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src /workspace/wheels "$FASE_OUTPUT_ROOT/wheels"
@@ -351,6 +354,7 @@ spec:
   script: |
     set -Eeuo pipefail
     umask 022
+    export PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
     python=/opt/python/cp313-cp313/bin/python
     mkdir -p /tmp/filelock-src "$FASE_OUTPUT_ROOT/wheels"
     "$python" -m pip install --disable-pip-version-check --no-cache-dir \

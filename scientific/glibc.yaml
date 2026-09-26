@@ -197,6 +197,7 @@ spec:
   script: |
     set -Eeuo pipefail
     umask 022
+    export PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
     export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
     mkdir -p /workspace/pkgconfig
     sed "s|/out/openblas|$FASE_INPUT_ROOT/openblas|g" \
@@ -208,12 +209,12 @@ spec:
     python=/opt/python/cp313-cp313/bin/python
     export PATH=/opt/python/cp313-cp313/bin:$PATH
     mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src /workspace/wheels "$FASE_OUTPUT_ROOT/wheels"
+    "$python" -m pip install --no-index --no-deps --force-reinstall "$FASE_INPUT_ROOT"/numpy-wheels/numpy-*.whl
     "$python" -m pip install --disable-pip-version-check --no-cache-dir \
       'meson==1.12.1' 'meson-python==0.21.1' 'pyproject-metadata==0.12.1' \
       'packaging==26.3' 'Cython==3.2.4' 'ninja==1.13.2' 'pybind11==3.0.4' \
       'pythran==0.19.0' 'beniget==0.5.0' 'gast==0.7.0' 'ply==3.11' 'setuptools==84.0.0' \
       'auditwheel==6.5.0'
-    "$python" -m pip install --no-index --no-deps --force-reinstall "$FASE_INPUT_ROOT"/numpy-wheels/numpy-*.whl
     "$python" -c 'import numpy; assert numpy.__version__ == "2.5.3"'
     tar -xf "$FASE_INPUT_ROOT/source.tar.gz" -C /workspace/src
     cd /workspace/src/scipy-1.18.1

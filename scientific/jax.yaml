@@ -55,6 +55,7 @@ spec:
   script: |
     set -Eeuo pipefail
     umask 022
+    export PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
     export HOME=/workspace/home
     export TMPDIR=/workspace/tmp
     export XDG_CACHE_HOME=/workspace/cache
