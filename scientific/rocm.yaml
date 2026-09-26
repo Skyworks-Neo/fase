@@ -228,6 +228,8 @@ spec:
     src=/workspace/src/jax
     cd "$src"
     "$python" build/build.py build --wheels=jax-rocm-plugin,jax-rocm-pjrt \
+      --rocm_path=/workspace/rocm --rocm_version=7 \
+      --rocm_amdgpu_targets=gfx942 \
       --bazel_startup_options=--bazelrc=build/rocm/rocm.bazelrc \
       --bazel_startup_options=--host_jvm_args=-Djava.net.preferIPv6Addresses=true \
       --bazel_options=--config=rocm_release_wheel \
