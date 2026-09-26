@@ -1,0 +1,188 @@
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata: {name: fetch-pandas-3-0-6}
+spec:
+  tasks:
+    - name: fetch
+      taskSelector:
+        matchLabels: {capability: fetch-url}
+      variables:
+        url: {value: "https://files.pythonhosted.org/packages/e2/17/d7b106e05bfa642e8694451e7d3d759c6a241c5386a5d962e4f66c047e06/pandas-3.0.6.tar.gz"}
+        sha256: {value: "66b07ef7315a31bfe1089cd3d71a7de781c9dca986762d0b4fe7c0ef17465d10"}
+        version: {value: "3.0.6"}
+      outputs: [{name: source}]
+  outputs:
+    artifacts:
+      - name: source
+        from: {task: fetch, artifact: source}
+        labels:
+          name: {value: pandas-source}
+          version: {value: "3.0.6"}
+          recipe: {value: fetch-v2}
+---
+apiVersion: skyw.top/v1beta1
+kind: Task
+metadata: {name: glibc-pandas-build, labels: {capability: glibc-pandas-build}}
+spec:
+  image: quay.io/pypa/manylinux_2_28_x86_64@sha256:407f771c51a2c3e83ebe5a7970b4289ead3a6db21d9b9c089168775cad11d328
+  command: [/bin/bash]
+  nodeSelector: {kubernetes.io/hostname: node1}
+  securityContext:
+    runAsUser: 0
+    runAsNonRoot: false
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    seccompProfile: {type: RuntimeDefault}
+  resources:
+    requests: {cpu: "16", memory: 32Gi, ephemeral-storage: 64Gi}
+    limits: {cpu: "32", memory: 64Gi, ephemeral-storage: 300Gi}
+  workspace: {taskSizeLimit: 300Gi, inputSizeLimit: 32Gi, outputSizeLimit: 32Gi, transferSizeLimit: 32Gi}
+  inputs:
+    artifacts:
+      - {name: source, path: pandas.tar.gz, kind: file}
+      - {name: numpy, path: numpy-wheels, kind: tree}
+  outputs:
+    artifacts:
+      - {name: wheels, path: wheels, kind: tree}
+      - {name: report, path: pandas-glibc-build.txt, kind: file}
+  script: |
+    set -Eeuo pipefail
+    export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
+    python=/opt/python/cp313-cp313/bin/python
+    mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src /workspace/wheels "$FASE_OUTPUT_ROOT/wheels"
+    "$python" -m pip install --disable-pip-version-check --no-cache-dir \
+      'meson-python==0.21.1' 'meson==1.12.1' 'wheel==0.45.1' \
+      'Cython==3.2.4' 'versioneer[toml]==0.29' 'ninja==1.13.2'
+    "$python" -m pip install --no-index --no-deps "$FASE_INPUT_ROOT"/numpy-wheels/numpy-*.whl
+    tar -xf "$FASE_INPUT_ROOT/pandas.tar.gz" -C /workspace/src
+    cd /workspace/src/pandas-3.0.6
+    "$python" -m pip wheel --disable-pip-version-check --no-build-isolation --no-deps \
+      -w /workspace/wheels -Ccompile-args=-j32 .
+    "$python" -m auditwheel repair --plat manylinux_2_28_x86_64 \
+      /workspace/wheels/pandas-3.0.6-*.whl -w "$FASE_OUTPUT_ROOT/wheels"
+    test "$(find "$FASE_OUTPUT_ROOT/wheels" -name 'pandas-*.whl' | wc -l)" -eq 1
+    unzip -t "$FASE_OUTPUT_ROOT"/wheels/pandas-*.whl >/dev/null
+    {
+      printf 'pandas 3.0.6 built from source with source-built NumPy 2.5.3\n'
+      sha256sum "$FASE_OUTPUT_ROOT"/wheels/pandas-*.whl
+    } > "$FASE_OUTPUT_ROOT/pandas-glibc-build.txt"
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata: {name: glibc-pandas-build}
+spec:
+  inputs:
+    artifacts:
+      - name: source
+        artifactSelector:
+          matchLabels: {name: pandas-source, version: "3.0.6", recipe: fetch-v2}
+      - name: numpy
+        artifactSelector:
+          matchLabels: {name: numpy-glibc-wheels, version: "2.5.3"}
+  tasks:
+    - name: build
+      taskSelector:
+        matchLabels: {capability: glibc-pandas-build}
+      inputs:
+        artifacts:
+          - {name: source, from: {recipeInput: source}}
+          - {name: numpy, from: {recipeInput: numpy}}
+      outputs: [{name: wheels}, {name: report}]
+  outputs:
+    artifacts:
+      - name: wheels
+        from: {task: build, artifact: wheels}
+        labels:
+          name: {value: pandas-glibc-wheels}
+          version: {value: "3.0.6"}
+          python: {value: cp313}
+          libc: {value: glibc}
+          arch: {value: amd64}
+      - name: report
+        from: {task: build, artifact: report}
+        labels:
+          name: {value: pandas-glibc-report}
+          version: {value: "3.0.6"}
+---
+apiVersion: skyw.top/v1beta1
+kind: Task
+metadata: {name: glibc-ml-dtypes-build, labels: {capability: glibc-ml-dtypes-build}}
+spec:
+  image: quay.io/pypa/manylinux_2_28_x86_64@sha256:407f771c51a2c3e83ebe5a7970b4289ead3a6db21d9b9c089168775cad11d328
+  command: [/bin/bash]
+  nodeSelector: {kubernetes.io/hostname: node1}
+  securityContext:
+    runAsUser: 0
+    runAsNonRoot: false
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    seccompProfile: {type: RuntimeDefault}
+  resources:
+    requests: {cpu: "16", memory: 32Gi, ephemeral-storage: 64Gi}
+    limits: {cpu: "32", memory: 64Gi, ephemeral-storage: 300Gi}
+  workspace: {taskSizeLimit: 300Gi, inputSizeLimit: 32Gi, outputSizeLimit: 32Gi, transferSizeLimit: 32Gi}
+  inputs:
+    artifacts:
+      - {name: source, path: ml-dtypes.tar.gz, kind: file}
+      - {name: numpy, path: numpy-wheels, kind: tree}
+  outputs:
+    artifacts:
+      - {name: wheels, path: wheels, kind: tree}
+      - {name: report, path: ml-dtypes-glibc-build.txt, kind: file}
+  script: |
+    set -Eeuo pipefail
+    export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
+    python=/opt/python/cp313-cp313/bin/python
+    mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src /workspace/wheels "$FASE_OUTPUT_ROOT/wheels"
+    "$python" -m pip install --disable-pip-version-check --no-cache-dir \
+      'scikit-build-core==1.1.0' 'ninja==1.13.2' 'packaging==26.3'
+    "$python" -m pip install --no-index --no-deps "$FASE_INPUT_ROOT"/numpy-wheels/numpy-*.whl
+    tar -xf "$FASE_INPUT_ROOT/ml-dtypes.tar.gz" -C /workspace/src
+    cd /workspace/src/ml_dtypes-0.6.0
+    "$python" -m pip wheel --disable-pip-version-check --no-build-isolation --no-deps \
+      --wheel-dir /workspace/wheels -Ccmake.build-type=Release .
+    "$python" -m auditwheel repair --plat manylinux_2_28_x86_64 \
+      /workspace/wheels/ml_dtypes-0.6.0-*.whl -w "$FASE_OUTPUT_ROOT/wheels"
+    test "$(find "$FASE_OUTPUT_ROOT/wheels" -name 'ml_dtypes-*.whl' | wc -l)" -eq 1
+    unzip -t "$FASE_OUTPUT_ROOT"/wheels/ml_dtypes-*.whl >/dev/null
+    {
+      printf 'ml_dtypes 0.6.0 built from source with source-built NumPy 2.5.3\n'
+      sha256sum "$FASE_OUTPUT_ROOT"/wheels/ml_dtypes-*.whl
+    } > "$FASE_OUTPUT_ROOT/ml-dtypes-glibc-build.txt"
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata: {name: glibc-ml-dtypes-build}
+spec:
+  inputs:
+    artifacts:
+      - name: source
+        artifactSelector:
+          matchLabels: {name: ml_dtypes-source, version: "0.6.0", recipe: fetch-v1}
+      - name: numpy
+        artifactSelector:
+          matchLabels: {name: numpy-glibc-wheels, version: "2.5.3"}
+  tasks:
+    - name: build
+      taskSelector:
+        matchLabels: {capability: glibc-ml-dtypes-build}
+      inputs:
+        artifacts:
+          - {name: source, from: {recipeInput: source}}
+          - {name: numpy, from: {recipeInput: numpy}}
+      outputs: [{name: wheels}, {name: report}]
+  outputs:
+    artifacts:
+      - name: wheels
+        from: {task: build, artifact: wheels}
+        labels:
+          name: {value: ml-dtypes-glibc-wheels}
+          version: {value: "0.6.0"}
+          python: {value: cp313}
+          libc: {value: glibc}
+          arch: {value: amd64}
+      - name: report
+        from: {task: build, artifact: report}
+        labels:
+          name: {value: ml-dtypes-glibc-report}
+          version: {value: "0.6.0"}

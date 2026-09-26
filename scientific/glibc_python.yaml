@@ -1,0 +1,77 @@
+apiVersion: skyw.top/v1beta1
+kind: Task
+metadata: {name: glibc-python-build, labels: {capability: glibc-python-build}}
+spec:
+  image: quay.io/pypa/manylinux_2_28_x86_64@sha256:407f771c51a2c3e83ebe5a7970b4289ead3a6db21d9b9c089168775cad11d328
+  command: [/bin/bash]
+  nodeSelector: {kubernetes.io/hostname: node1}
+  securityContext:
+    runAsUser: 0
+    runAsNonRoot: false
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    seccompProfile: {type: RuntimeDefault}
+  resources:
+    requests: {cpu: "32", memory: 64Gi, ephemeral-storage: 200Gi}
+    limits: {cpu: "32", memory: 64Gi, ephemeral-storage: 300Gi}
+  workspace: {taskSizeLimit: 300Gi, inputSizeLimit: 32Gi, outputSizeLimit: 32Gi, transferSizeLimit: 32Gi}
+  inputs:
+    artifacts:
+      - {name: source, path: python.tar.xz, kind: file}
+  outputs:
+    artifacts:
+      - {name: prefix, path: python, kind: tree}
+      - {name: report, path: python-glibc-build.txt, kind: file}
+  script: |
+    set -Eeuo pipefail
+    export HOME=/workspace/home TMPDIR=/workspace/tmp
+    mkdir -p "$HOME" "$TMPDIR" /workspace/src "$FASE_OUTPUT_ROOT/python"
+    tar -xf "$FASE_INPUT_ROOT/python.tar.xz" -C /workspace/src
+    cd /workspace/src/Python-3.13.15
+    ./configure --prefix="$FASE_OUTPUT_ROOT/python" --enable-shared --with-ensurepip=install
+    make -j32
+    make install
+    export LD_LIBRARY_PATH="$FASE_OUTPUT_ROOT/python/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    "$FASE_OUTPUT_ROOT/python/bin/python3.13" -c \
+      'import bz2, ctypes, lzma, sqlite3, ssl, zlib; print(ssl.OPENSSL_VERSION)'
+    "$FASE_OUTPUT_ROOT/python/bin/python3.13" -m venv /workspace/test-venv
+    /workspace/test-venv/bin/python -m pip --version
+    {
+      printf 'CPython 3.13.15 built from source against manylinux_2_28 base libraries\n'
+      "$FASE_OUTPUT_ROOT/python/bin/python3.13" --version
+      "$FASE_OUTPUT_ROOT/python/bin/python3.13" -c 'import sysconfig; print(sysconfig.get_config_var("SOABI"))'
+      sha256sum "$FASE_OUTPUT_ROOT/python/bin/python3.13"
+    } > "$FASE_OUTPUT_ROOT/python-glibc-build.txt"
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata: {name: glibc-python-build}
+spec:
+  inputs:
+    artifacts:
+      - name: source
+        artifactSelector:
+          matchLabels: {name: python-source, version: "3.13.15", recipe: fetch-v1}
+  tasks:
+    - name: build
+      taskSelector:
+        matchLabels: {capability: glibc-python-build}
+      inputs:
+        artifacts:
+          - {name: source, from: {recipeInput: source}}
+      outputs: [{name: prefix}, {name: report}]
+  outputs:
+    artifacts:
+      - name: prefix
+        from: {task: build, artifact: prefix}
+        labels:
+          name: {value: python-glibc}
+          version: {value: "3.13.15"}
+          libc: {value: glibc}
+          arch: {value: amd64}
+          source: {value: cpython-3.13.15}
+      - name: report
+        from: {task: build, artifact: report}
+        labels:
+          name: {value: python-glibc-report}
+          version: {value: "3.13.15"}

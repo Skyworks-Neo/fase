@@ -7,4 +7,8 @@ resources:
   - probabilistic.yaml
   - rocm.yaml
   - numba.yaml
+  - pure.yaml
+  - glibc_extra.yaml
+  - glibc_python.yaml
+  - verify.yaml
   - requests.yaml

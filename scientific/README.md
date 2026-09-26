@@ -11,8 +11,15 @@ Task unpacks them into its 300Gi workspace before running the original build
 script. Source tarballs are fetched with pinned SHA256 digests. Native kernel
 building and package publication are outside this build graph.
 
-The new glibc line defines source builds of OpenBLAS, NumPy, SciPy, LLVM 22,
-llvmlite, Numba, JAX and jaxlib, PyTensor and PyMC. The ROCm line pins TheRock
+The new glibc line defines source builds of CPython, OpenBLAS, NumPy, SciPy,
+LLVM 22, llvmlite, Numba, pandas, ml_dtypes, JAX and jaxlib, PyTensor and PyMC.
+`pure-lock.json` pins the remaining Python runtime sdists by URL and SHA256;
+`gen_pure_science.py` creates their fetch and wheel Recipes. The offline
+verification Recipe combines 31 wheel/prefix artifacts, installs with
+`--no-index`, then exercises SciPy linear algebra, Numba, JAX CPU, PyTensor,
+and PyMC.
+
+The ROCm line pins TheRock
 7.14.1 and the ROCm/JAX 0.11.1 fork, targeting gfx942. The PyMC and ROCm SDK
 Requests start these two independent dependency lines. The ROCm/JAX plugin
 Request follows after JAX CPU and the SDK have both completed. ROCm validation

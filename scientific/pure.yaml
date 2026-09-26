@@ -1,0 +1,1645 @@
+apiVersion: skyw.top/v1beta1
+kind: Task
+metadata:
+  name: build-pinned-python-sdist
+  labels:
+    capability: build-pinned-python-sdist
+spec:
+  image: quay.io/pypa/manylinux_2_28_x86_64@sha256:407f771c51a2c3e83ebe5a7970b4289ead3a6db21d9b9c089168775cad11d328
+  command:
+  - /bin/bash
+  securityContext:
+    runAsUser: 0
+    runAsNonRoot: false
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    seccompProfile:
+      type: RuntimeDefault
+  resources:
+    requests:
+      cpu: '1'
+      memory: 2Gi
+      ephemeral-storage: 2Gi
+    limits:
+      cpu: '4'
+      memory: 8Gi
+      ephemeral-storage: 16Gi
+  inputs:
+    variables:
+    - name: package
+      env: FASE_VAR_PACKAGE
+      required: true
+    - name: version
+      env: FASE_VAR_VERSION
+      required: true
+    artifacts:
+    - name: source
+      path: source.tar.gz
+      kind: file
+  outputs:
+    artifacts:
+    - name: wheels
+      path: wheels
+      kind: tree
+  script: |
+    set -Eeuo pipefail
+    python=/opt/python/cp313-cp313/bin/python
+    mkdir -p /tmp/source "$FASE_OUTPUT_ROOT/wheels"
+    tar -xf "$FASE_INPUT_ROOT/source.tar.gz" -C /tmp/source
+    src=$(find /tmp/source -mindepth 1 -maxdepth 1 -type d | head -1)
+    test -n "$src"
+    "$python" -m pip wheel --disable-pip-version-check --no-cache-dir --no-deps \
+      --wheel-dir "$FASE_OUTPUT_ROOT/wheels" "$src"
+    FASE_WHEELS="$FASE_OUTPUT_ROOT/wheels" "$python" - <<'PY'
+    import email.parser, glob, os, re, zipfile
+    wheels = glob.glob(os.environ['FASE_WHEELS'] + '/*.whl')
+    assert len(wheels) == 1, wheels
+    with zipfile.ZipFile(wheels[0]) as archive:
+        metadata = next(name for name in archive.namelist() if name.endswith('.dist-info/METADATA'))
+        package = email.parser.Parser().parsestr(archive.read(metadata).decode())
+        normalize = lambda name: re.sub(r'[-_.]+', '-', name).lower()
+        assert normalize(package['Name']) == normalize(os.environ['FASE_VAR_PACKAGE']), package['Name']
+        assert package['Version'] == os.environ['FASE_VAR_VERSION'], package['Version']
+        assert archive.testzip() is None
+    print(wheels[0], package['Name'], package['Version'])
+    PY
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-arviz-1-3-0
+spec:
+  tasks:
+  - name: fetch
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/e6/f2/d295913894dfc5021dc8d1c5a865c4ff3da73ddc3227d1ed1b8ce48a375d/arviz-1.3.0.tar.gz
+      sha256:
+        value: 9e332c0a0da370cb1c00823678065e9b0462fbdf1efa0f38c37485cc78c8a576
+      version:
+        value: 1.3.0
+    outputs:
+    - name: source
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: arviz-source
+        version:
+          value: 1.3.0
+        recipe:
+          value: fetch-v2
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: build-arviz-1-3-0
+spec:
+  inputs:
+    artifacts:
+    - name: source
+      artifactSelector:
+        matchLabels:
+          name: arviz-source
+          version: 1.3.0
+          recipe: fetch-v2
+  tasks:
+  - name: build
+    taskSelector:
+      matchLabels:
+        capability: build-pinned-python-sdist
+    variables:
+      package:
+        value: arviz
+      version:
+        value: 1.3.0
+    inputs:
+      artifacts:
+      - name: source
+        from:
+          recipeInput: source
+    outputs:
+    - name: wheels
+  outputs:
+    artifacts:
+    - name: wheels
+      from:
+        task: build
+        artifact: wheels
+      labels:
+        name:
+          value: arviz-glibc-wheels
+        version:
+          value: 1.3.0
+        python:
+          value: cp313
+        libc:
+          value: glibc
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-arviz-base-1-3-1
+spec:
+  tasks:
+  - name: fetch
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/d1/e6/4cbf049a330a6b36cb4c2ed6913564965d397e30304b1e1ac13067630d26/arviz_base-1.3.1.tar.gz
+      sha256:
+        value: f83c49d1842ca93821d38bc03f1d75df18d56d507694804a07ce6c1b3bbf2d6c
+      version:
+        value: 1.3.1
+    outputs:
+    - name: source
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: arviz-base-source
+        version:
+          value: 1.3.1
+        recipe:
+          value: fetch-v2
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: build-arviz-base-1-3-1
+spec:
+  inputs:
+    artifacts:
+    - name: source
+      artifactSelector:
+        matchLabels:
+          name: arviz-base-source
+          version: 1.3.1
+          recipe: fetch-v2
+  tasks:
+  - name: build
+    taskSelector:
+      matchLabels:
+        capability: build-pinned-python-sdist
+    variables:
+      package:
+        value: arviz-base
+      version:
+        value: 1.3.1
+    inputs:
+      artifacts:
+      - name: source
+        from:
+          recipeInput: source
+    outputs:
+    - name: wheels
+  outputs:
+    artifacts:
+    - name: wheels
+      from:
+        task: build
+        artifact: wheels
+      labels:
+        name:
+          value: arviz-base-glibc-wheels
+        version:
+          value: 1.3.1
+        python:
+          value: cp313
+        libc:
+          value: glibc
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-arviz-plots-1-3-2
+spec:
+  tasks:
+  - name: fetch
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/4e/08/ff7e5f5edb4e019017a5754a9a211a4589c9d3d51127b64a7b61bf2da941/arviz_plots-1.3.2.tar.gz
+      sha256:
+        value: 040b5672f186e39ea21554f8fa60c01786798bd10eb0853cab1fc09e54eacead
+      version:
+        value: 1.3.2
+    outputs:
+    - name: source
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: arviz-plots-source
+        version:
+          value: 1.3.2
+        recipe:
+          value: fetch-v2
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: build-arviz-plots-1-3-2
+spec:
+  inputs:
+    artifacts:
+    - name: source
+      artifactSelector:
+        matchLabels:
+          name: arviz-plots-source
+          version: 1.3.2
+          recipe: fetch-v2
+  tasks:
+  - name: build
+    taskSelector:
+      matchLabels:
+        capability: build-pinned-python-sdist
+    variables:
+      package:
+        value: arviz-plots
+      version:
+        value: 1.3.2
+    inputs:
+      artifacts:
+      - name: source
+        from:
+          recipeInput: source
+    outputs:
+    - name: wheels
+  outputs:
+    artifacts:
+    - name: wheels
+      from:
+        task: build
+        artifact: wheels
+      labels:
+        name:
+          value: arviz-plots-glibc-wheels
+        version:
+          value: 1.3.2
+        python:
+          value: cp313
+        libc:
+          value: glibc
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-arviz-stats-1-3-3
+spec:
+  tasks:
+  - name: fetch
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/80/e0/3d6815e0026a12b8719ff4dfdbaa7cc45d0c0e0cc7ae371d768fc08d2c6e/arviz_stats-1.3.3.tar.gz
+      sha256:
+        value: 3fed50cc2a9bb8e2719fd675691b1c332c15394e13d4b7a2bef64f6a6c2a6ccf
+      version:
+        value: 1.3.3
+    outputs:
+    - name: source
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: arviz-stats-source
+        version:
+          value: 1.3.3
+        recipe:
+          value: fetch-v2
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: build-arviz-stats-1-3-3
+spec:
+  inputs:
+    artifacts:
+    - name: source
+      artifactSelector:
+        matchLabels:
+          name: arviz-stats-source
+          version: 1.3.3
+          recipe: fetch-v2
+  tasks:
+  - name: build
+    taskSelector:
+      matchLabels:
+        capability: build-pinned-python-sdist
+    variables:
+      package:
+        value: arviz-stats
+      version:
+        value: 1.3.3
+    inputs:
+      artifacts:
+      - name: source
+        from:
+          recipeInput: source
+    outputs:
+    - name: wheels
+  outputs:
+    artifacts:
+    - name: wheels
+      from:
+        task: build
+        artifact: wheels
+      labels:
+        name:
+          value: arviz-stats-glibc-wheels
+        version:
+          value: 1.3.3
+        python:
+          value: cp313
+        libc:
+          value: glibc
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-cachetools-6-2-6
+spec:
+  tasks:
+  - name: fetch
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/39/91/d9ae9a66b01102a18cd16db0cf4cd54187ffe10f0865cc80071a4104fbb3/cachetools-6.2.6.tar.gz
+      sha256:
+        value: 16c33e1f276b9a9c0b49ab5782d901e3ad3de0dd6da9bf9bcd29ac5672f2f9e6
+      version:
+        value: 6.2.6
+    outputs:
+    - name: source
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: cachetools-source
+        version:
+          value: 6.2.6
+        recipe:
+          value: fetch-v2
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: build-cachetools-6-2-6
+spec:
+  inputs:
+    artifacts:
+    - name: source
+      artifactSelector:
+        matchLabels:
+          name: cachetools-source
+          version: 6.2.6
+          recipe: fetch-v2
+  tasks:
+  - name: build
+    taskSelector:
+      matchLabels:
+        capability: build-pinned-python-sdist
+    variables:
+      package:
+        value: cachetools
+      version:
+        value: 6.2.6
+    inputs:
+      artifacts:
+      - name: source
+        from:
+          recipeInput: source
+    outputs:
+    - name: wheels
+  outputs:
+    artifacts:
+    - name: wheels
+      from:
+        task: build
+        artifact: wheels
+      labels:
+        name:
+          value: cachetools-glibc-wheels
+        version:
+          value: 6.2.6
+        python:
+          value: cp313
+        libc:
+          value: glibc
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-cloudpickle-3-1-2
+spec:
+  tasks:
+  - name: fetch
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/27/fb/576f067976d320f5f0114a8d9fa1215425441bb35627b1993e5afd8111e5/cloudpickle-3.1.2.tar.gz
+      sha256:
+        value: 7fda9eb655c9c230dab534f1983763de5835249750e85fbcef43aaa30a9a2414
+      version:
+        value: 3.1.2
+    outputs:
+    - name: source
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: cloudpickle-source
+        version:
+          value: 3.1.2
+        recipe:
+          value: fetch-v2
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: build-cloudpickle-3-1-2
+spec:
+  inputs:
+    artifacts:
+    - name: source
+      artifactSelector:
+        matchLabels:
+          name: cloudpickle-source
+          version: 3.1.2
+          recipe: fetch-v2
+  tasks:
+  - name: build
+    taskSelector:
+      matchLabels:
+        capability: build-pinned-python-sdist
+    variables:
+      package:
+        value: cloudpickle
+      version:
+        value: 3.1.2
+    inputs:
+      artifacts:
+      - name: source
+        from:
+          recipeInput: source
+    outputs:
+    - name: wheels
+  outputs:
+    artifacts:
+    - name: wheels
+      from:
+        task: build
+        artifact: wheels
+      labels:
+        name:
+          value: cloudpickle-glibc-wheels
+        version:
+          value: 3.1.2
+        python:
+          value: cp313
+        libc:
+          value: glibc
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-lazy-loader-0-6
+spec:
+  tasks:
+  - name: fetch
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/19/8c/0f2ff2a8b7513e68871a74740c17a504b0488c679b379e6445ebb7bd78dc/lazy_loader-0.6.tar.gz
+      sha256:
+        value: 2f4b7824d6401958639008a0cae20c776b61dff619accd6890693e2de8260167
+      version:
+        value: '0.6'
+    outputs:
+    - name: source
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: lazy-loader-source
+        version:
+          value: '0.6'
+        recipe:
+          value: fetch-v2
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: build-lazy-loader-0-6
+spec:
+  inputs:
+    artifacts:
+    - name: source
+      artifactSelector:
+        matchLabels:
+          name: lazy-loader-source
+          version: '0.6'
+          recipe: fetch-v2
+  tasks:
+  - name: build
+    taskSelector:
+      matchLabels:
+        capability: build-pinned-python-sdist
+    variables:
+      package:
+        value: lazy-loader
+      version:
+        value: '0.6'
+    inputs:
+      artifacts:
+      - name: source
+        from:
+          recipeInput: source
+    outputs:
+    - name: wheels
+  outputs:
+    artifacts:
+    - name: wheels
+      from:
+        task: build
+        artifact: wheels
+      labels:
+        name:
+          value: lazy-loader-glibc-wheels
+        version:
+          value: '0.6'
+        python:
+          value: cp313
+        libc:
+          value: glibc
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-markdown-it-py-4-2-0
+spec:
+  tasks:
+  - name: fetch
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/06/ff/7841249c247aa650a76b9ee4bbaeae59370dc8bfd2f6c01f3630c35eb134/markdown_it_py-4.2.0.tar.gz
+      sha256:
+        value: 04a21681d6fbb623de53f6f364d352309d4094dd4194040a10fd51833e418d49
+      version:
+        value: 4.2.0
+    outputs:
+    - name: source
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: markdown-it-py-source
+        version:
+          value: 4.2.0
+        recipe:
+          value: fetch-v2
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: build-markdown-it-py-4-2-0
+spec:
+  inputs:
+    artifacts:
+    - name: source
+      artifactSelector:
+        matchLabels:
+          name: markdown-it-py-source
+          version: 4.2.0
+          recipe: fetch-v2
+  tasks:
+  - name: build
+    taskSelector:
+      matchLabels:
+        capability: build-pinned-python-sdist
+    variables:
+      package:
+        value: markdown-it-py
+      version:
+        value: 4.2.0
+    inputs:
+      artifacts:
+      - name: source
+        from:
+          recipeInput: source
+    outputs:
+    - name: wheels
+  outputs:
+    artifacts:
+    - name: wheels
+      from:
+        task: build
+        artifact: wheels
+      labels:
+        name:
+          value: markdown-it-py-glibc-wheels
+        version:
+          value: 4.2.0
+        python:
+          value: cp313
+        libc:
+          value: glibc
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-mdurl-0-1-2
+spec:
+  tasks:
+  - name: fetch
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz
+      sha256:
+        value: bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba
+      version:
+        value: 0.1.2
+    outputs:
+    - name: source
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: mdurl-source
+        version:
+          value: 0.1.2
+        recipe:
+          value: fetch-v2
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: build-mdurl-0-1-2
+spec:
+  inputs:
+    artifacts:
+    - name: source
+      artifactSelector:
+        matchLabels:
+          name: mdurl-source
+          version: 0.1.2
+          recipe: fetch-v2
+  tasks:
+  - name: build
+    taskSelector:
+      matchLabels:
+        capability: build-pinned-python-sdist
+    variables:
+      package:
+        value: mdurl
+      version:
+        value: 0.1.2
+    inputs:
+      artifacts:
+      - name: source
+        from:
+          recipeInput: source
+    outputs:
+    - name: wheels
+  outputs:
+    artifacts:
+    - name: wheels
+      from:
+        task: build
+        artifact: wheels
+      labels:
+        name:
+          value: mdurl-glibc-wheels
+        version:
+          value: 0.1.2
+        python:
+          value: cp313
+        libc:
+          value: glibc
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-opt-einsum-3-4-0
+spec:
+  tasks:
+  - name: fetch
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/8c/b9/2ac072041e899a52f20cf9510850ff58295003aa75525e58343591b0cbfb/opt_einsum-3.4.0.tar.gz
+      sha256:
+        value: 96ca72f1b886d148241348783498194c577fa30a8faac108586b14f1ba4473ac
+      version:
+        value: 3.4.0
+    outputs:
+    - name: source
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: opt-einsum-source
+        version:
+          value: 3.4.0
+        recipe:
+          value: fetch-v2
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: build-opt-einsum-3-4-0
+spec:
+  inputs:
+    artifacts:
+    - name: source
+      artifactSelector:
+        matchLabels:
+          name: opt-einsum-source
+          version: 3.4.0
+          recipe: fetch-v2
+  tasks:
+  - name: build
+    taskSelector:
+      matchLabels:
+        capability: build-pinned-python-sdist
+    variables:
+      package:
+        value: opt-einsum
+      version:
+        value: 3.4.0
+    inputs:
+      artifacts:
+      - name: source
+        from:
+          recipeInput: source
+    outputs:
+    - name: wheels
+  outputs:
+    artifacts:
+    - name: wheels
+      from:
+        task: build
+        artifact: wheels
+      labels:
+        name:
+          value: opt-einsum-glibc-wheels
+        version:
+          value: 3.4.0
+        python:
+          value: cp313
+        libc:
+          value: glibc
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-packaging-26-3
+spec:
+  tasks:
+  - name: fetch
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/7d/fa/3944b40b07da9ce895c0e6303a5ab7d53da063554f534556b134a54d6093/packaging-26.3.tar.gz
+      sha256:
+        value: 94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79
+      version:
+        value: '26.3'
+    outputs:
+    - name: source
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: packaging-source
+        version:
+          value: '26.3'
+        recipe:
+          value: fetch-v2
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: build-packaging-26-3
+spec:
+  inputs:
+    artifacts:
+    - name: source
+      artifactSelector:
+        matchLabels:
+          name: packaging-source
+          version: '26.3'
+          recipe: fetch-v2
+  tasks:
+  - name: build
+    taskSelector:
+      matchLabels:
+        capability: build-pinned-python-sdist
+    variables:
+      package:
+        value: packaging
+      version:
+        value: '26.3'
+    inputs:
+      artifacts:
+      - name: source
+        from:
+          recipeInput: source
+    outputs:
+    - name: wheels
+  outputs:
+    artifacts:
+    - name: wheels
+      from:
+        task: build
+        artifact: wheels
+      labels:
+        name:
+          value: packaging-glibc-wheels
+        version:
+          value: '26.3'
+        python:
+          value: cp313
+        libc:
+          value: glibc
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-pygments-2-21-0
+spec:
+  tasks:
+  - name: fetch
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/49/2e/ced460408999b33da6b31b0021b0f37d329e202d4169aeb164493778f25b/pygments-2.21.0.tar.gz
+      sha256:
+        value: 610ca751c9bc2492b38eb9a38a7fbc93edbbb2d7182edaf34e66ae493dee5c8c
+      version:
+        value: 2.21.0
+    outputs:
+    - name: source
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: pygments-source
+        version:
+          value: 2.21.0
+        recipe:
+          value: fetch-v2
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: build-pygments-2-21-0
+spec:
+  inputs:
+    artifacts:
+    - name: source
+      artifactSelector:
+        matchLabels:
+          name: pygments-source
+          version: 2.21.0
+          recipe: fetch-v2
+  tasks:
+  - name: build
+    taskSelector:
+      matchLabels:
+        capability: build-pinned-python-sdist
+    variables:
+      package:
+        value: pygments
+      version:
+        value: 2.21.0
+    inputs:
+      artifacts:
+      - name: source
+        from:
+          recipeInput: source
+    outputs:
+    - name: wheels
+  outputs:
+    artifacts:
+    - name: wheels
+      from:
+        task: build
+        artifact: wheels
+      labels:
+        name:
+          value: pygments-glibc-wheels
+        version:
+          value: 2.21.0
+        python:
+          value: cp313
+        libc:
+          value: glibc
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-python-dateutil-2-9-0-post0
+spec:
+  tasks:
+  - name: fetch
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/66/c0/0c8b6ad9f17a802ee498c46e004a0eb49bc148f2fd230864601a86dcf6db/python-dateutil-2.9.0.post0.tar.gz
+      sha256:
+        value: 37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3
+      version:
+        value: 2.9.0.post0
+    outputs:
+    - name: source
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: python-dateutil-source
+        version:
+          value: 2.9.0.post0
+        recipe:
+          value: fetch-v2
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: build-python-dateutil-2-9-0-post0
+spec:
+  inputs:
+    artifacts:
+    - name: source
+      artifactSelector:
+        matchLabels:
+          name: python-dateutil-source
+          version: 2.9.0.post0
+          recipe: fetch-v2
+  tasks:
+  - name: build
+    taskSelector:
+      matchLabels:
+        capability: build-pinned-python-sdist
+    variables:
+      package:
+        value: python-dateutil
+      version:
+        value: 2.9.0.post0
+    inputs:
+      artifacts:
+      - name: source
+        from:
+          recipeInput: source
+    outputs:
+    - name: wheels
+  outputs:
+    artifacts:
+    - name: wheels
+      from:
+        task: build
+        artifact: wheels
+      labels:
+        name:
+          value: python-dateutil-glibc-wheels
+        version:
+          value: 2.9.0.post0
+        python:
+          value: cp313
+        libc:
+          value: glibc
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-rich-15-0-0
+spec:
+  tasks:
+  - name: fetch
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/c0/8f/0722ca900cc807c13a6a0c696dacf35430f72e0ec571c4275d2371fca3e9/rich-15.0.0.tar.gz
+      sha256:
+        value: edd07a4824c6b40189fb7ac9bc4c52536e9780fbbfbddf6f1e2502c31b068c36
+      version:
+        value: 15.0.0
+    outputs:
+    - name: source
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: rich-source
+        version:
+          value: 15.0.0
+        recipe:
+          value: fetch-v2
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: build-rich-15-0-0
+spec:
+  inputs:
+    artifacts:
+    - name: source
+      artifactSelector:
+        matchLabels:
+          name: rich-source
+          version: 15.0.0
+          recipe: fetch-v2
+  tasks:
+  - name: build
+    taskSelector:
+      matchLabels:
+        capability: build-pinned-python-sdist
+    variables:
+      package:
+        value: rich
+      version:
+        value: 15.0.0
+    inputs:
+      artifacts:
+      - name: source
+        from:
+          recipeInput: source
+    outputs:
+    - name: wheels
+  outputs:
+    artifacts:
+    - name: wheels
+      from:
+        task: build
+        artifact: wheels
+      labels:
+        name:
+          value: rich-glibc-wheels
+        version:
+          value: 15.0.0
+        python:
+          value: cp313
+        libc:
+          value: glibc
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-setuptools-84-0-0
+spec:
+  tasks:
+  - name: fetch
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/6d/44/f5da03a8ef95d369145c5bb53050e7877c9f3d312e128605fd9504829143/setuptools-84.0.0.tar.gz
+      sha256:
+        value: f4695c21257f0d9b537ec2692c941d02ee143b7cc1276941349a546573b2ef73
+      version:
+        value: 84.0.0
+    outputs:
+    - name: source
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: setuptools-source
+        version:
+          value: 84.0.0
+        recipe:
+          value: fetch-v2
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: build-setuptools-84-0-0
+spec:
+  inputs:
+    artifacts:
+    - name: source
+      artifactSelector:
+        matchLabels:
+          name: setuptools-source
+          version: 84.0.0
+          recipe: fetch-v2
+  tasks:
+  - name: build
+    taskSelector:
+      matchLabels:
+        capability: build-pinned-python-sdist
+    variables:
+      package:
+        value: setuptools
+      version:
+        value: 84.0.0
+    inputs:
+      artifacts:
+      - name: source
+        from:
+          recipeInput: source
+    outputs:
+    - name: wheels
+  outputs:
+    artifacts:
+    - name: wheels
+      from:
+        task: build
+        artifact: wheels
+      labels:
+        name:
+          value: setuptools-glibc-wheels
+        version:
+          value: 84.0.0
+        python:
+          value: cp313
+        libc:
+          value: glibc
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-six-1-17-0
+spec:
+  tasks:
+  - name: fetch
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz
+      sha256:
+        value: ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81
+      version:
+        value: 1.17.0
+    outputs:
+    - name: source
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: six-source
+        version:
+          value: 1.17.0
+        recipe:
+          value: fetch-v2
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: build-six-1-17-0
+spec:
+  inputs:
+    artifacts:
+    - name: source
+      artifactSelector:
+        matchLabels:
+          name: six-source
+          version: 1.17.0
+          recipe: fetch-v2
+  tasks:
+  - name: build
+    taskSelector:
+      matchLabels:
+        capability: build-pinned-python-sdist
+    variables:
+      package:
+        value: six
+      version:
+        value: 1.17.0
+    inputs:
+      artifacts:
+      - name: source
+        from:
+          recipeInput: source
+    outputs:
+    - name: wheels
+  outputs:
+    artifacts:
+    - name: wheels
+      from:
+        task: build
+        artifact: wheels
+      labels:
+        name:
+          value: six-glibc-wheels
+        version:
+          value: 1.17.0
+        python:
+          value: cp313
+        libc:
+          value: glibc
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-threadpoolctl-3-7-0
+spec:
+  tasks:
+  - name: fetch
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/00/dc/6c58154c1c65f758ea979e7139cb76993a9cfc662d14e9be3c4a667cfb77/threadpoolctl-3.7.0.tar.gz
+      sha256:
+        value: 61348cfb77d53b9242e0017029244b559b810c142ced65b4e21eeca1843959a7
+      version:
+        value: 3.7.0
+    outputs:
+    - name: source
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: threadpoolctl-source
+        version:
+          value: 3.7.0
+        recipe:
+          value: fetch-v2
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: build-threadpoolctl-3-7-0
+spec:
+  inputs:
+    artifacts:
+    - name: source
+      artifactSelector:
+        matchLabels:
+          name: threadpoolctl-source
+          version: 3.7.0
+          recipe: fetch-v2
+  tasks:
+  - name: build
+    taskSelector:
+      matchLabels:
+        capability: build-pinned-python-sdist
+    variables:
+      package:
+        value: threadpoolctl
+      version:
+        value: 3.7.0
+    inputs:
+      artifacts:
+      - name: source
+        from:
+          recipeInput: source
+    outputs:
+    - name: wheels
+  outputs:
+    artifacts:
+    - name: wheels
+      from:
+        task: build
+        artifact: wheels
+      labels:
+        name:
+          value: threadpoolctl-glibc-wheels
+        version:
+          value: 3.7.0
+        python:
+          value: cp313
+        libc:
+          value: glibc
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-typing-extensions-4-16-0
+spec:
+  tasks:
+  - name: fetch
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/f6/cc/6253133b5bb138fc3306cebfbda2c520f545d36b5be2c7255cc528bb45d6/typing_extensions-4.16.0.tar.gz
+      sha256:
+        value: dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5
+      version:
+        value: 4.16.0
+    outputs:
+    - name: source
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: typing-extensions-source
+        version:
+          value: 4.16.0
+        recipe:
+          value: fetch-v2
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: build-typing-extensions-4-16-0
+spec:
+  inputs:
+    artifacts:
+    - name: source
+      artifactSelector:
+        matchLabels:
+          name: typing-extensions-source
+          version: 4.16.0
+          recipe: fetch-v2
+  tasks:
+  - name: build
+    taskSelector:
+      matchLabels:
+        capability: build-pinned-python-sdist
+    variables:
+      package:
+        value: typing-extensions
+      version:
+        value: 4.16.0
+    inputs:
+      artifacts:
+      - name: source
+        from:
+          recipeInput: source
+    outputs:
+    - name: wheels
+  outputs:
+    artifacts:
+    - name: wheels
+      from:
+        task: build
+        artifact: wheels
+      labels:
+        name:
+          value: typing-extensions-glibc-wheels
+        version:
+          value: 4.16.0
+        python:
+          value: cp313
+        libc:
+          value: glibc
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-xarray-2026-7-0
+spec:
+  tasks:
+  - name: fetch
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/ea/96/3f7bdd00e505ec3698903415b30135024703e017b28c6b61f98da3193b0d/xarray-2026.7.0.tar.gz
+      sha256:
+        value: 361b495928fdbf5b58d0969bb6775339019da5e93ca74d61ddf4eb5edd6ce604
+      version:
+        value: 2026.7.0
+    outputs:
+    - name: source
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: xarray-source
+        version:
+          value: 2026.7.0
+        recipe:
+          value: fetch-v2
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: build-xarray-2026-7-0
+spec:
+  inputs:
+    artifacts:
+    - name: source
+      artifactSelector:
+        matchLabels:
+          name: xarray-source
+          version: 2026.7.0
+          recipe: fetch-v2
+  tasks:
+  - name: build
+    taskSelector:
+      matchLabels:
+        capability: build-pinned-python-sdist
+    variables:
+      package:
+        value: xarray
+      version:
+        value: 2026.7.0
+    inputs:
+      artifacts:
+      - name: source
+        from:
+          recipeInput: source
+    outputs:
+    - name: wheels
+  outputs:
+    artifacts:
+    - name: wheels
+      from:
+        task: build
+        artifact: wheels
+      labels:
+        name:
+          value: xarray-glibc-wheels
+        version:
+          value: 2026.7.0
+        python:
+          value: cp313
+        libc:
+          value: glibc
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: fetch-xarray-einstats-0-11-0
+spec:
+  tasks:
+  - name: fetch
+    taskSelector:
+      matchLabels:
+        capability: fetch-url
+    variables:
+      url:
+        value: https://files.pythonhosted.org/packages/6f/70/adb14007ee636eadd2a404802f7bb340c6f123ea81cfca152ebd4b6e2660/xarray_einstats-0.11.0.tar.gz
+      sha256:
+        value: 69f48a60f62151d40c49fd6d9a6dc0b970aecef2813a33209e4dcde897fca48b
+      version:
+        value: 0.11.0
+    outputs:
+    - name: source
+  outputs:
+    artifacts:
+    - name: source
+      from:
+        task: fetch
+        artifact: source
+      labels:
+        name:
+          value: xarray-einstats-source
+        version:
+          value: 0.11.0
+        recipe:
+          value: fetch-v2
+---
+apiVersion: skyw.top/v1beta1
+kind: Recipe
+metadata:
+  name: build-xarray-einstats-0-11-0
+spec:
+  inputs:
+    artifacts:
+    - name: source
+      artifactSelector:
+        matchLabels:
+          name: xarray-einstats-source
+          version: 0.11.0
+          recipe: fetch-v2
+  tasks:
+  - name: build
+    taskSelector:
+      matchLabels:
+        capability: build-pinned-python-sdist
+    variables:
+      package:
+        value: xarray-einstats
+      version:
+        value: 0.11.0
+    inputs:
+      artifacts:
+      - name: source
+        from:
+          recipeInput: source
+    outputs:
+    - name: wheels
+  outputs:
+    artifacts:
+    - name: wheels
+      from:
+        task: build
+        artifact: wheels
+      labels:
+        name:
+          value: xarray-einstats-glibc-wheels
+        version:
+          value: 0.11.0
+        python:
+          value: cp313
+        libc:
+          value: glibc

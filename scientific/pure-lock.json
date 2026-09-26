@@ -1,0 +1,122 @@
+{
+  "arviz": {
+    "filename": "arviz-1.3.0.tar.gz",
+    "sha256": "9e332c0a0da370cb1c00823678065e9b0462fbdf1efa0f38c37485cc78c8a576",
+    "url": "https://files.pythonhosted.org/packages/e6/f2/d295913894dfc5021dc8d1c5a865c4ff3da73ddc3227d1ed1b8ce48a375d/arviz-1.3.0.tar.gz",
+    "version": "1.3.0"
+  },
+  "arviz-base": {
+    "filename": "arviz_base-1.3.1.tar.gz",
+    "sha256": "f83c49d1842ca93821d38bc03f1d75df18d56d507694804a07ce6c1b3bbf2d6c",
+    "url": "https://files.pythonhosted.org/packages/d1/e6/4cbf049a330a6b36cb4c2ed6913564965d397e30304b1e1ac13067630d26/arviz_base-1.3.1.tar.gz",
+    "version": "1.3.1"
+  },
+  "arviz-plots": {
+    "filename": "arviz_plots-1.3.2.tar.gz",
+    "sha256": "040b5672f186e39ea21554f8fa60c01786798bd10eb0853cab1fc09e54eacead",
+    "url": "https://files.pythonhosted.org/packages/4e/08/ff7e5f5edb4e019017a5754a9a211a4589c9d3d51127b64a7b61bf2da941/arviz_plots-1.3.2.tar.gz",
+    "version": "1.3.2"
+  },
+  "arviz-stats": {
+    "filename": "arviz_stats-1.3.3.tar.gz",
+    "sha256": "3fed50cc2a9bb8e2719fd675691b1c332c15394e13d4b7a2bef64f6a6c2a6ccf",
+    "url": "https://files.pythonhosted.org/packages/80/e0/3d6815e0026a12b8719ff4dfdbaa7cc45d0c0e0cc7ae371d768fc08d2c6e/arviz_stats-1.3.3.tar.gz",
+    "version": "1.3.3"
+  },
+  "cachetools": {
+    "filename": "cachetools-6.2.6.tar.gz",
+    "sha256": "16c33e1f276b9a9c0b49ab5782d901e3ad3de0dd6da9bf9bcd29ac5672f2f9e6",
+    "url": "https://files.pythonhosted.org/packages/39/91/d9ae9a66b01102a18cd16db0cf4cd54187ffe10f0865cc80071a4104fbb3/cachetools-6.2.6.tar.gz",
+    "version": "6.2.6"
+  },
+  "cloudpickle": {
+    "filename": "cloudpickle-3.1.2.tar.gz",
+    "sha256": "7fda9eb655c9c230dab534f1983763de5835249750e85fbcef43aaa30a9a2414",
+    "url": "https://files.pythonhosted.org/packages/27/fb/576f067976d320f5f0114a8d9fa1215425441bb35627b1993e5afd8111e5/cloudpickle-3.1.2.tar.gz",
+    "version": "3.1.2"
+  },
+  "lazy-loader": {
+    "filename": "lazy_loader-0.6.tar.gz",
+    "sha256": "2f4b7824d6401958639008a0cae20c776b61dff619accd6890693e2de8260167",
+    "url": "https://files.pythonhosted.org/packages/19/8c/0f2ff2a8b7513e68871a74740c17a504b0488c679b379e6445ebb7bd78dc/lazy_loader-0.6.tar.gz",
+    "version": "0.6"
+  },
+  "markdown-it-py": {
+    "filename": "markdown_it_py-4.2.0.tar.gz",
+    "sha256": "04a21681d6fbb623de53f6f364d352309d4094dd4194040a10fd51833e418d49",
+    "url": "https://files.pythonhosted.org/packages/06/ff/7841249c247aa650a76b9ee4bbaeae59370dc8bfd2f6c01f3630c35eb134/markdown_it_py-4.2.0.tar.gz",
+    "version": "4.2.0"
+  },
+  "mdurl": {
+    "filename": "mdurl-0.1.2.tar.gz",
+    "sha256": "bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba",
+    "url": "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz",
+    "version": "0.1.2"
+  },
+  "opt-einsum": {
+    "filename": "opt_einsum-3.4.0.tar.gz",
+    "sha256": "96ca72f1b886d148241348783498194c577fa30a8faac108586b14f1ba4473ac",
+    "url": "https://files.pythonhosted.org/packages/8c/b9/2ac072041e899a52f20cf9510850ff58295003aa75525e58343591b0cbfb/opt_einsum-3.4.0.tar.gz",
+    "version": "3.4.0"
+  },
+  "packaging": {
+    "filename": "packaging-26.3.tar.gz",
+    "sha256": "94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79",
+    "url": "https://files.pythonhosted.org/packages/7d/fa/3944b40b07da9ce895c0e6303a5ab7d53da063554f534556b134a54d6093/packaging-26.3.tar.gz",
+    "version": "26.3"
+  },
+  "pygments": {
+    "filename": "pygments-2.21.0.tar.gz",
+    "sha256": "610ca751c9bc2492b38eb9a38a7fbc93edbbb2d7182edaf34e66ae493dee5c8c",
+    "url": "https://files.pythonhosted.org/packages/49/2e/ced460408999b33da6b31b0021b0f37d329e202d4169aeb164493778f25b/pygments-2.21.0.tar.gz",
+    "version": "2.21.0"
+  },
+  "python-dateutil": {
+    "filename": "python-dateutil-2.9.0.post0.tar.gz",
+    "sha256": "37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3",
+    "url": "https://files.pythonhosted.org/packages/66/c0/0c8b6ad9f17a802ee498c46e004a0eb49bc148f2fd230864601a86dcf6db/python-dateutil-2.9.0.post0.tar.gz",
+    "version": "2.9.0.post0"
+  },
+  "rich": {
+    "filename": "rich-15.0.0.tar.gz",
+    "sha256": "edd07a4824c6b40189fb7ac9bc4c52536e9780fbbfbddf6f1e2502c31b068c36",
+    "url": "https://files.pythonhosted.org/packages/c0/8f/0722ca900cc807c13a6a0c696dacf35430f72e0ec571c4275d2371fca3e9/rich-15.0.0.tar.gz",
+    "version": "15.0.0"
+  },
+  "setuptools": {
+    "filename": "setuptools-84.0.0.tar.gz",
+    "sha256": "f4695c21257f0d9b537ec2692c941d02ee143b7cc1276941349a546573b2ef73",
+    "url": "https://files.pythonhosted.org/packages/6d/44/f5da03a8ef95d369145c5bb53050e7877c9f3d312e128605fd9504829143/setuptools-84.0.0.tar.gz",
+    "version": "84.0.0"
+  },
+  "six": {
+    "filename": "six-1.17.0.tar.gz",
+    "sha256": "ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81",
+    "url": "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz",
+    "version": "1.17.0"
+  },
+  "threadpoolctl": {
+    "filename": "threadpoolctl-3.7.0.tar.gz",
+    "sha256": "61348cfb77d53b9242e0017029244b559b810c142ced65b4e21eeca1843959a7",
+    "url": "https://files.pythonhosted.org/packages/00/dc/6c58154c1c65f758ea979e7139cb76993a9cfc662d14e9be3c4a667cfb77/threadpoolctl-3.7.0.tar.gz",
+    "version": "3.7.0"
+  },
+  "typing-extensions": {
+    "filename": "typing_extensions-4.16.0.tar.gz",
+    "sha256": "dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5",
+    "url": "https://files.pythonhosted.org/packages/f6/cc/6253133b5bb138fc3306cebfbda2c520f545d36b5be2c7255cc528bb45d6/typing_extensions-4.16.0.tar.gz",
+    "version": "4.16.0"
+  },
+  "xarray": {
+    "filename": "xarray-2026.7.0.tar.gz",
+    "sha256": "361b495928fdbf5b58d0969bb6775339019da5e93ca74d61ddf4eb5edd6ce604",
+    "url": "https://files.pythonhosted.org/packages/ea/96/3f7bdd00e505ec3698903415b30135024703e017b28c6b61f98da3193b0d/xarray-2026.7.0.tar.gz",
+    "version": "2026.7.0"
+  },
+  "xarray-einstats": {
+    "filename": "xarray_einstats-0.11.0.tar.gz",
+    "sha256": "69f48a60f62151d40c49fd6d9a6dc0b970aecef2813a33209e4dcde897fca48b",
+    "url": "https://files.pythonhosted.org/packages/6f/70/adb14007ee636eadd2a404802f7bb340c6f123ea81cfca152ebd4b6e2660/xarray_einstats-0.11.0.tar.gz",
+    "version": "0.11.0"
+  }
+}
