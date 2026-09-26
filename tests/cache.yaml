@@ -1,0 +1,14 @@
+apiVersion: skyw.top/v1beta1
+kind: Request
+metadata:
+  name: hello-cache-check
+  namespace: fase-beta
+spec:
+  artifactSelector:
+    matchLabels:
+      name: hello-package
+      version: "1.0"
+      arch: amd64
+  variables:
+    version: "1.0"
+    arch: amd64

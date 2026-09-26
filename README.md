@@ -21,3 +21,6 @@ content-addressed `objects/` path in the existing `fase` bucket.
 `crds/`, `runtime/`, and `smoke/` are separate Kustomize roots to give Flux a
 dependency order. `smoke/` contains the example two task build Request and its
 definitions. The shared CRDs are never pruned by Flux.
+
+After the smoke Request succeeds, `kubectl apply -f tests/cache.yaml` verifies
+that a second Request resolves the existing Claim without starting more Jobs.
