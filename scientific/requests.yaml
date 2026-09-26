@@ -30,3 +30,13 @@ spec:
       name: rocm-gfx942-sdk
       version: "7.14.1"
       gpu: gfx942
+---
+apiVersion: skyw.top/v1beta1
+kind: Request
+metadata:
+  name: champion-glibc-python
+spec:
+  artifactSelector:
+    matchLabels:
+      name: python-glibc
+      version: "3.13.15"
