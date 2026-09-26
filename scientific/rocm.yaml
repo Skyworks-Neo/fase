@@ -90,8 +90,8 @@ spec:
     allowPrivilegeEscalation: false
     seccompProfile: {type: RuntimeDefault}
   resources:
-    requests: {cpu: "32", memory: 64Gi, ephemeral-storage: 200Gi}
-    limits: {cpu: "32", memory: 64Gi, ephemeral-storage: 300Gi}
+    requests: {cpu: "32", memory: 96Gi, ephemeral-storage: 200Gi}
+    limits: {cpu: "32", memory: 96Gi, ephemeral-storage: 300Gi}
   workspace: {taskSizeLimit: 300Gi, inputSizeLimit: 32Gi, outputSizeLimit: 32Gi, transferSizeLimit: 32Gi}
   inputs:
     artifacts:
@@ -135,7 +135,7 @@ spec:
     done
     cmake -S . -B /workspace/build -GNinja -DTHEROCK_AMDGPU_TARGETS=gfx942 \
       -DTHEROCK_DIST_AMDGPU_TARGETS=gfx942 -DTHEROCK_TEST_AMDGPU_TARGETS=gfx942 \
-      -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release
+      -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DLLVM_PARALLEL_LINK_JOBS=2
     cmake --build /workspace/build --target therock-dist -j32
     test -d /workspace/build/dist/rocm/lib
     tar -C /workspace/build/dist/rocm -cf - . | zstd -T16 -9 \
