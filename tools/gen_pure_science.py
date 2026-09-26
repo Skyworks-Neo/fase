@@ -71,6 +71,8 @@ with zipfile.ZipFile(wheels[0]) as archive:
     assert archive.testzip() is None
 print(wheels[0], package['Name'], package['Version'])
 PY
+chmod -R a+rX "$FASE_OUTPUT_ROOT/wheels"
+ls -ld "$FASE_OUTPUT_ROOT/wheels" "$FASE_OUTPUT_ROOT/wheels"/*.whl
 """),
         },
     }]
