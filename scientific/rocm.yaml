@@ -102,6 +102,7 @@ spec:
       - {name: report, path: rocm-gfx942-build.txt, kind: file}
   script: |
     set -Eeuo pipefail
+    umask 022
     export DEBIAN_FRONTEND=noninteractive HOME=/workspace/home TMPDIR=/workspace/tmp
     mkdir -p "$HOME" "$TMPDIR" /workspace/src/therock
     apt-get update -qq
@@ -192,6 +193,7 @@ spec:
       - {name: report, path: rocm-jax-gfx942-build.txt, kind: file}
   script: |
     set -Eeuo pipefail
+    umask 022
     export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
     mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src/jax /workspace/rocm \
       /workspace/wheels "$FASE_OUTPUT_ROOT/wheels"

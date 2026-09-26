@@ -73,6 +73,7 @@ spec:
       - {name: report, path: pytensor-build.txt, kind: file}
   script: |
     set -Eeuo pipefail
+    umask 022
     export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
     python=/opt/python/cp313-cp313/bin/python
     mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src "$FASE_OUTPUT_ROOT/wheels"
@@ -176,6 +177,7 @@ spec:
       - {name: report, path: pymc-build.txt, kind: file}
   script: |
     set -Eeuo pipefail
+    umask 022
     export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
     python=/opt/python/cp313-cp313/bin/python
     mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src "$FASE_OUTPUT_ROOT/wheels"

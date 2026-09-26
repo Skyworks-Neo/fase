@@ -47,6 +47,7 @@ spec:
       - {name: report, path: pandas-glibc-build.txt, kind: file}
   script: |
     set -Eeuo pipefail
+    umask 022
     export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
     python=/opt/python/cp313-cp313/bin/python
     mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src /workspace/wheels "$FASE_OUTPUT_ROOT/wheels"
@@ -131,6 +132,7 @@ spec:
       - {name: report, path: ml-dtypes-glibc-build.txt, kind: file}
   script: |
     set -Eeuo pipefail
+    umask 022
     export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
     python=/opt/python/cp313-cp313/bin/python
     mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src /workspace/wheels "$FASE_OUTPUT_ROOT/wheels"

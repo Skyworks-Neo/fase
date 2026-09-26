@@ -24,6 +24,7 @@ spec:
       - {name: report, path: openblas-glibc-build.txt, kind: file}
   script: |
     set -Eeuo pipefail
+    umask 022
     mkdir -p /workspace/src "$FASE_OUTPUT_ROOT/openblas"
     tar -xf "$FASE_INPUT_ROOT/source.tar.gz" -C /workspace/src
     src=$(find /workspace/src -mindepth 1 -maxdepth 1 -type d -name 'OpenBLAS*' | head -1)
@@ -98,6 +99,7 @@ spec:
       - {name: report, path: numpy-glibc-build.txt, kind: file}
   script: |
     set -Eeuo pipefail
+    umask 022
     export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
     export PKG_CONFIG_PATH="$FASE_INPUT_ROOT/openblas/lib/pkgconfig"
     export LD_LIBRARY_PATH="$FASE_INPUT_ROOT/openblas/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
@@ -188,6 +190,7 @@ spec:
       - {name: report, path: scipy-glibc-build.txt, kind: file}
   script: |
     set -Eeuo pipefail
+    umask 022
     export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
     export PKG_CONFIG_PATH="$FASE_INPUT_ROOT/openblas/lib/pkgconfig"
     export LD_LIBRARY_PATH="$FASE_INPUT_ROOT/openblas/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"

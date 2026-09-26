@@ -36,6 +36,7 @@ kind: Request
 metadata:
   name: champion-glibc-python
 spec:
+  rerun: 1
   artifactSelector:
     matchLabels:
       name: python-glibc

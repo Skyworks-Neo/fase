@@ -24,8 +24,11 @@ spec:
       - {name: report, path: python-glibc-build.txt, kind: file}
   script: |
     set -Eeuo pipefail
+    umask 022
     export HOME=/workspace/home TMPDIR=/workspace/tmp
     mkdir -p "$HOME" "$TMPDIR" /workspace/src "$FASE_OUTPUT_ROOT/python"
+    dnf install -y -q bzip2-devel xz-devel sqlite-devel openssl-devel \
+      libffi-devel readline-devel gdbm-devel ncurses-devel
     tar -xf "$FASE_INPUT_ROOT/python.tar.xz" -C /workspace/src
     cd /workspace/src/Python-3.13.15
     ./configure --prefix="$FASE_OUTPUT_ROOT/python" --enable-shared --with-ensurepip=install

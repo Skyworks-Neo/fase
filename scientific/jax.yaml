@@ -54,6 +54,7 @@ spec:
       - {name: report, path: jax-cpu-build.txt, kind: file}
   script: |
     set -Eeuo pipefail
+    umask 022
     export HOME=/workspace/home
     export TMPDIR=/workspace/tmp
     export XDG_CACHE_HOME=/workspace/cache

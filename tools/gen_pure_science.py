@@ -51,6 +51,7 @@ def main():
             },
             "outputs": {"artifacts": [{"name": "wheels", "path": "wheels", "kind": "tree"}]},
             "script": Literal("""set -Eeuo pipefail
+umask 022
 python=/opt/python/cp313-cp313/bin/python
 mkdir -p /tmp/source "$FASE_OUTPUT_ROOT/wheels"
 tar -xf "$FASE_INPUT_ROOT/source.tar.gz" -C /tmp/source

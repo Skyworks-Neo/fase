@@ -40,6 +40,7 @@ def main():
     dependencies.update((package, (f"{package}-glibc-wheels", pin["version"])) for package, pin in lock.items())
     artifacts = [{"name": name, "path": f"deps/{name}", "kind": "tree"} for name in sorted(dependencies)]
     script = Literal("""set -Eeuo pipefail
+umask 022
 export HOME=/workspace/home TMPDIR=/workspace/tmp
 mkdir -p "$HOME" "$TMPDIR" /workspace/wheelhouse
 find "$FASE_INPUT_ROOT/deps" -mindepth 2 -maxdepth 2 -type f -name '*.whl' -exec cp -t /workspace/wheelhouse {} +
