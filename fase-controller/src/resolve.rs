@@ -1,8 +1,8 @@
 use fase_api::{
-    Artifact, ArtifactReference, LabelBinding, LabelOperator, LabelSelector, Labels, Phase, Plan,
-    PlanReference, Request, ResolvedInput, ResolvedInputOrigin, ResolvedInputs, ResolvedOutput,
-    ResolvedOutputs, ResolvedPlanStatus, Step, StepStatus, Variables, spec_digest,
-    valid_label_value, valid_name,
+    Artifact, ArtifactClaim, ArtifactReference, LabelBinding, LabelOperator, LabelSelector, Labels,
+    ObjectReference, Phase, Recipe, Request, ResolutionDiagnostic, ResolvedInput,
+    ResolvedInputOrigin, ResolvedInputs, ResolvedOutput, ResolvedOutputs, ResolvedRecipeStatus,
+    Task, TaskStatus, Variables, valid_label_value, valid_name,
 };
 use kube::ResourceExt;
 use std::collections::{BTreeMap, BTreeSet};
@@ -10,102 +10,168 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Clone)]
 struct Choice {
     labels: Labels,
-    artifact_type: String,
+    kind: fase_api::ArtifactKind,
+    content_digest: Option<String>,
     reference: Option<ArtifactReference>,
+    claim_ref: Option<ArtifactReference>,
     producer: Option<(String, String)>,
 }
 
 #[derive(Debug)]
 pub struct Resolution {
-    pub plans: Vec<ResolvedPlanStatus>,
+    pub recipes: Vec<ResolvedRecipeStatus>,
     pub artifact_ref: Option<ArtifactReference>,
+    pub content_digest: Option<String>,
+    pub claim_ref: Option<ArtifactReference>,
     pub target_output: Option<String>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug)]
+pub struct ResolutionFailure {
+    pub reason: String,
+    pub message: String,
+    pub diagnostics: Vec<ResolutionDiagnostic>,
+}
+
+impl From<String> for ResolutionFailure {
+    fn from(message: String) -> Self {
+        Self {
+            reason: "InvalidSelector".into(),
+            message,
+            diagnostics: Vec::new(),
+        }
+    }
+}
+
+impl From<&str> for ResolutionFailure {
+    fn from(message: &str) -> Self {
+        message.to_owned().into()
+    }
 }
 
 struct Solver<'a> {
     request: &'a Request,
-    plans: &'a [Plan],
-    steps: &'a [Step],
+    recipes: &'a [Recipe],
+    tasks: &'a [Task],
     artifacts: &'a [Artifact],
-    graph: Vec<ResolvedPlanStatus>,
+    claims: &'a [ArtifactClaim],
+    graph: Vec<ResolvedRecipeStatus>,
     stack: Vec<String>,
+    warnings: Vec<String>,
 }
 
 pub fn resolve(
     request: &Request,
-    plans: &[Plan],
-    steps: &[Step],
+    recipes: &[Recipe],
+    tasks: &[Task],
     artifacts: &[Artifact],
-) -> Result<Resolution, String> {
+    claims: &[ArtifactClaim],
+) -> Result<Resolution, ResolutionFailure> {
     request.spec.artifact_selector.validate()?;
+    if let Some(selector) = &request.spec.recipe_selector {
+        selector.validate()?;
+    }
     if request.spec.artifact_selector.is_empty() {
         return Err("artifactSelector is empty".into());
     }
     let mut solver = Solver {
         request,
-        plans,
-        steps,
+        recipes,
+        tasks,
         artifacts,
+        claims,
         graph: Vec::new(),
         stack: Vec::new(),
+        warnings: Vec::new(),
     };
-    let choice = solver.choose(&request.spec.artifact_selector)?;
+    let choice = solver.choose(
+        &request.spec.artifact_selector,
+        true,
+        &request.spec.variables,
+    )?;
     Ok(Resolution {
-        plans: solver.graph,
+        recipes: solver.graph,
         artifact_ref: choice.reference,
+        content_digest: choice.content_digest,
+        claim_ref: choice.claim_ref,
         target_output: choice.producer.map(|p| p.1),
+        warnings: solver.warnings,
     })
 }
 
 impl Solver<'_> {
-    fn choose(&mut self, selector: &LabelSelector) -> Result<Choice, String> {
+    fn choose(
+        &mut self,
+        selector: &LabelSelector,
+        root: bool,
+        scope: &Variables,
+    ) -> Result<Choice, ResolutionFailure> {
         selector.validate()?;
-        let existing: Vec<_> = self
-            .artifacts
+        let mut existing: Vec<_> = self
+            .claims
             .iter()
             .filter(|a| a.metadata.deletion_timestamp.is_none())
+            .filter(|a| {
+                self.artifacts.iter().any(|artifact| {
+                    artifact.metadata.deletion_timestamp.is_none()
+                        && artifact.name_any() == a.spec.artifact_ref.name
+                })
+            })
             .filter(|a| {
                 a.metadata
                     .labels
                     .as_ref()
-                    .is_some_and(|l| selector.matches(l))
+                    .is_some_and(|l| fase_api::valid_labels(l) && selector.matches(l))
             })
             .collect();
-        if existing.len() > 1 {
-            return Err(format!(
-                "AmbiguousArtifact: {} artifacts match",
-                existing.len()
-            ));
-        }
-        if let Some(a) = existing.first() {
-            if fase_api::artifact_format(&a.spec.artifact_type).is_none() {
-                return Err(format!("Artifact {} has unsupported type", a.name_any()));
+        existing.sort_by_key(|a| a.name_any());
+        if !root || (self.request.spec.recipe_selector.is_none() && self.request.spec.rerun == 0) {
+            if existing.len() > 1 {
+                self.warnings.push(format!(
+                    "multiple ArtifactClaims match: {}",
+                    existing
+                        .iter()
+                        .map(|a| a.name_any())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
             }
-            return Ok(Choice {
-                labels: a.metadata.labels.clone().unwrap_or_default(),
-                artifact_type: a.spec.artifact_type.clone(),
-                reference: Some(ArtifactReference { name: a.name_any() }),
-                producer: None,
-            });
+            if let Some(a) = existing.first() {
+                let artifact = self
+                    .artifacts
+                    .iter()
+                    .find(|item| item.name_any() == a.spec.artifact_ref.name)
+                    .ok_or("ArtifactClaim references a missing Artifact")?;
+                return Ok(Choice {
+                    labels: a.metadata.labels.clone().unwrap_or_default(),
+                    kind: artifact.spec.kind,
+                    content_digest: Some(artifact.spec.content_digest.clone()),
+                    reference: Some(a.spec.artifact_ref.clone()),
+                    claim_ref: Some(ArtifactReference { name: a.name_any() }),
+                    producer: None,
+                });
+            }
         }
-        let planned: Vec<_> = self
+        let recipened: Vec<_> = self
             .graph
             .iter()
-            .flat_map(|plan| {
-                plan.definition
+            .flat_map(|recipe| {
+                recipe
+                    .definition
                     .outputs
                     .artifacts
                     .iter()
                     .filter_map(move |output| {
-                        let labels = frozen_labels(plan, output).ok()?;
+                        let labels = frozen_labels(recipe, output).ok()?;
                         if !selector.matches(&labels) {
                             return None;
                         }
-                        let step = plan
-                            .steps
+                        let task = recipe
+                            .tasks
                             .iter()
-                            .find(|s| Some(&s.name) == output.from.step.as_ref())?;
-                        let port = step
+                            .find(|s| Some(&s.name) == output.from.task.as_ref())?;
+                        let port = task
                             .definition
                             .outputs
                             .artifacts
@@ -113,85 +179,143 @@ impl Solver<'_> {
                             .find(|p| Some(&p.name) == output.from.artifact.as_ref())?;
                         Some(Choice {
                             labels,
-                            artifact_type: port_type(port),
+                            kind: port.kind,
+                            content_digest: None,
                             reference: None,
-                            producer: Some((plan.name.clone(), output.name.clone())),
+                            claim_ref: None,
+                            producer: Some((recipe.name.clone(), output.name.clone())),
                         })
                     })
             })
             .collect();
-        if planned.len() > 1 {
-            return Err(format!(
-                "AmbiguousProducer: {} resolved outputs match",
-                planned.len()
+        if recipened.len() > 1 {
+            self.warnings.push(format!(
+                "multiple resolved outputs match: {}",
+                recipened
+                    .iter()
+                    .filter_map(|choice| choice.producer.as_ref())
+                    .map(|(recipe, output)| format!("{recipe}/{output}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ));
         }
-        if let Some(choice) = planned.into_iter().next() {
+        if let Some(choice) = recipened.into_iter().next() {
             return Ok(choice);
         }
         let mut viable = Vec::new();
         let mut errors = Vec::new();
-        for plan in self
-            .plans
+        for recipe in self
+            .recipes
             .iter()
             .filter(|p| p.metadata.deletion_timestamp.is_none())
+            .filter(|p| {
+                !root
+                    || self
+                        .request
+                        .spec
+                        .recipe_selector
+                        .as_ref()
+                        .is_none_or(|selector| {
+                            selector.matches(p.metadata.labels.as_ref().unwrap_or(&Labels::new()))
+                        })
+            })
         {
-            for output in &plan.spec.outputs.artifacts {
-                if !may_match(output, selector, &self.request.spec.variables) {
+            for output in &recipe.spec.outputs.artifacts {
+                if !may_match(output, selector, scope) {
                     continue;
                 }
+                let candidate = format!("{}/{}", recipe.name_any(), output.name);
                 let mut branch = Solver {
                     request: self.request,
-                    plans: self.plans,
-                    steps: self.steps,
+                    recipes: self.recipes,
+                    tasks: self.tasks,
                     artifacts: self.artifacts,
+                    claims: self.claims,
                     graph: self.graph.clone(),
                     stack: self.stack.clone(),
+                    warnings: Vec::new(),
                 };
-                match branch.expand(plan, output, selector) {
-                    Ok(choice) => viable.push((choice, branch.graph)),
-                    Err(error) => errors.push(error),
+                match branch.expand(recipe, output, selector, scope) {
+                    Ok(choice) => viable.push((candidate, choice, branch.graph, branch.warnings)),
+                    Err(message) => errors.push(ResolutionDiagnostic {
+                        candidate,
+                        reason: diagnostic_reason(&message).into(),
+                        message,
+                    }),
                 }
             }
         }
         match viable.len() {
-            1 => {
-                let (choice, graph) = viable.remove(0);
+            n if n > 0 => {
+                if n > 1 {
+                    self.warnings.push(format!(
+                        "multiple Recipe outputs match: {}",
+                        viable
+                            .iter()
+                            .map(|item| item.0.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
+                let (_, choice, graph, warnings) = viable.remove(0);
                 self.graph = graph;
+                self.warnings.extend(warnings);
                 Ok(choice)
             }
-            n if n > 1 => Err(format!("AmbiguousProducer: {n} Plan outputs match")),
-            _ => Err(errors
-                .iter()
-                .find(|e| !e.starts_with("UnsatisfiedDependency"))
-                .or_else(|| errors.first())
-                .cloned()
-                .unwrap_or_else(|| {
-                    "UnsatisfiedDependency: no Artifact or Plan output satisfies selector".into()
-                })),
+            _ => {
+                let reason = if !errors.is_empty() {
+                    if errors.iter().all(|item| item.reason == "MissingParameter") {
+                        "MissingParameter"
+                    } else if errors.iter().all(|item| item.reason == "WaitingForTask") {
+                        "WaitingForTask"
+                    } else if errors
+                        .iter()
+                        .all(|item| item.reason == "WaitingForArtifact")
+                    {
+                        "WaitingForArtifact"
+                    } else {
+                        "NoViableRecipe"
+                    }
+                } else if root {
+                    "WaitingForRecipe"
+                } else {
+                    "WaitingForArtifact"
+                };
+                let message = if errors.is_empty() {
+                    format!("no ArtifactClaim or Recipe output satisfies selector ({reason})")
+                } else {
+                    format!("{} Recipe output candidates were rejected", errors.len())
+                };
+                Err(ResolutionFailure {
+                    reason: reason.into(),
+                    message,
+                    diagnostics: errors,
+                })
+            }
         }
     }
 
     fn expand(
         &mut self,
-        plan: &Plan,
-        output: &fase_api::PlanOutput,
+        recipe: &Recipe,
+        output: &fase_api::RecipeOutput,
         demand: &LabelSelector,
+        scope: &Variables,
     ) -> Result<Choice, String> {
-        let output_names: BTreeSet<_> = plan
+        let output_names: BTreeSet<_> = recipe
             .spec
             .outputs
             .artifacts
             .iter()
             .map(|o| &o.name)
             .collect();
-        if output_names.len() != plan.spec.outputs.artifacts.len()
-            || plan.spec.outputs.artifacts.is_empty()
+        if output_names.len() != recipe.spec.outputs.artifacts.len()
+            || recipe.spec.outputs.artifacts.is_empty()
             || output_names.iter().any(|name| !valid_name(name))
         {
-            return Err("invalid or duplicate Plan output".into());
+            return Err("invalid or duplicate Recipe output".into());
         }
-        let identity = format!("{}/{}", plan.name_any(), output.name);
+        let identity = format!("{}/{}", recipe.name_any(), output.name);
         if self.stack.contains(&identity) {
             return Err(format!("DependencyCycle: {identity}"));
         }
@@ -201,21 +325,22 @@ impl Solver<'_> {
         self.stack.push(identity);
         let mut variables = Variables::new();
         let mut declared = BTreeSet::new();
-        for var in &plan.spec.inputs.variables {
+        for var in &recipe.spec.inputs.variables {
             if !valid_name(&var.name) || !declared.insert(var.name.clone()) {
-                return Err(format!("invalid Plan variable {}", var.name));
+                return Err(format!("invalid Recipe variable {}", var.name));
             }
-            if let Some(v) = self.request.spec.variables.get(&var.name) {
+            if let Some(v) = scope
+                .get(&var.name)
+                .or_else(|| demand.match_labels.get(&var.name))
+            {
                 variables.insert(var.name.clone(), v.clone());
-            } else if var.required {
-                return Err(format!("missing Plan variable {}", var.name));
             }
         }
         let mut inputs = Vec::new();
         let mut input_choices = BTreeMap::new();
-        for input in &plan.spec.inputs.artifacts {
+        for input in &recipe.spec.inputs.artifacts {
             if !valid_name(&input.name) || input_choices.contains_key(&input.name) {
-                return Err(format!("invalid Plan input {}", input.name));
+                return Err(format!("invalid Recipe input {}", input.name));
             }
             let mut selector = input.artifact_selector.clone();
             for (key, binding) in &output.labels {
@@ -238,18 +363,41 @@ impl Solver<'_> {
                     }
                 }
             }
-            let chosen = self.choose(&selector)?;
+            let chosen = self
+                .choose(&selector, false, &variables)
+                .map_err(|error| format!("{}: {}", error.reason, error.message))?;
             inputs.push(ResolvedInput {
                 name: input.name.clone(),
                 from: ResolvedInputOrigin {
-                    resolved_plan: chosen.producer.as_ref().map(|p| p.0.clone()),
+                    resolved_recipe: chosen.producer.as_ref().map(|p| p.0.clone()),
                     artifact: chosen.producer.as_ref().map(|p| p.1.clone()),
                 },
                 labels: chosen.labels.clone(),
-                artifact_type: chosen.artifact_type.clone(),
+                kind: chosen.kind.clone(),
+                content_digest: chosen.content_digest.clone(),
                 artifact_ref: chosen.reference.clone(),
+                claim_ref: chosen.claim_ref.clone(),
             });
             input_choices.insert(input.name.clone(), chosen);
+        }
+        for var in &recipe.spec.inputs.variables {
+            if variables.contains_key(&var.name) {
+                continue;
+            }
+            let mut values = input_choices
+                .values()
+                .filter_map(|input| input.labels.get(&var.name));
+            if let Some(value) = values.next() {
+                if values.any(|other| other != value) {
+                    return Err(format!(
+                        "conflicting input labels for Recipe variable {}",
+                        var.name
+                    ));
+                }
+                variables.insert(var.name.clone(), value.clone());
+            } else if var.required {
+                return Err(format!("missing Recipe variable {}", var.name));
+            }
         }
         let mut labels = Labels::new();
         for (key, binding) in &output.labels {
@@ -258,7 +406,7 @@ impl Solver<'_> {
                 LabelBinding::Bound(source) => match (&source.from_variable, &source.from_input) {
                     (Some(v), None) => variables
                         .get(v)
-                        .ok_or_else(|| format!("unknown Plan variable {v}"))?
+                        .ok_or_else(|| format!("unknown Recipe variable {v}"))?
                         .clone(),
                     (None, Some(input)) => input_choices
                         .get(&input.input)
@@ -276,19 +424,19 @@ impl Solver<'_> {
             labels.insert(key.clone(), value);
         }
         if !fase_api::valid_labels(&labels) {
-            return Err("invalid Plan output labels".into());
+            return Err("invalid Recipe output labels".into());
         }
         if !demand.matches(&labels) {
             return Err("UnsatisfiedDependency: output labels do not match selector".into());
         }
-        let mut pending: BTreeMap<String, &fase_api::PlanStep> = plan
+        let mut pending: BTreeMap<String, &fase_api::RecipeTask> = recipe
             .spec
-            .steps
+            .tasks
             .iter()
             .map(|s| (s.name.clone(), s))
             .collect();
-        if pending.len() != plan.spec.steps.len() || pending.is_empty() {
-            return Err("duplicate or empty Plan steps".into());
+        if pending.len() != recipe.spec.tasks.len() || pending.is_empty() {
+            return Err("duplicate or empty Recipe tasks".into());
         }
         let mut statuses = Vec::new();
         while !pending.is_empty() {
@@ -301,51 +449,73 @@ impl Solver<'_> {
                 if inputs.len() != call.inputs.artifacts.len()
                     || outputs.len() != call.outputs.len()
                 {
-                    return Err(format!("duplicate Step binding in {name}"));
+                    return Err(format!("duplicate Task binding in {name}"));
                 }
                 let deps: Vec<_> = call
                     .inputs
                     .artifacts
                     .iter()
-                    .filter_map(|b| b.from.step.as_ref())
+                    .filter_map(|b| b.from.task.as_ref())
                     .collect();
                 if deps
                     .iter()
-                    .any(|d| !statuses.iter().any(|s: &StepStatus| &s.name == *d))
+                    .any(|d| !statuses.iter().any(|s: &TaskStatus| &s.name == *d))
                 {
                     continue;
                 }
-                call.step_selector.validate()?;
-                if call.step_selector.is_empty() {
-                    return Err(format!("step {name} has empty selector"));
+                call.task_selector.validate()?;
+                if call.task_selector.is_empty() {
+                    return Err(format!("task {name} has empty selector"));
                 }
-                let matches: Vec<_> = self
-                    .steps
+                let mut matches: Vec<_> = self
+                    .tasks
                     .iter()
                     .filter(|s| s.metadata.deletion_timestamp.is_none())
                     .filter(|s| {
-                        call.step_selector
+                        call.task_selector
                             .matches(s.metadata.labels.as_ref().unwrap_or(&Labels::new()))
                     })
                     .collect();
-                if matches.len() != 1 {
+                matches.sort_by_key(|task| task.name_any());
+                if matches.is_empty() {
                     return Err(format!(
-                        "step {name} selector matched {} Steps",
-                        matches.len()
+                        "UnsatisfiedDependency: task {name} selector matched no Tasks"
                     ));
                 }
-                let step = matches[0];
-                step.spec.validate()?;
+                if matches.len() > 1 {
+                    self.warnings.push(format!(
+                        "multiple Tasks match {name}: {}",
+                        matches
+                            .iter()
+                            .map(|task| task.name_any())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
+                let task = matches[0];
+                task.spec.validate()?;
                 let mut env = Variables::new();
-                for v in &step.spec.inputs.variables {
+                for v in &task.spec.inputs.variables {
                     let b = call.variables.get(&v.name);
                     let value = match b {
-                        Some(b) => match (&b.value, &b.from_variable) {
-                            (Some(v), None) => Some(v.clone()),
-                            (None, Some(from)) => Some(
+                        Some(b) => match (&b.value, &b.from_variable, &b.from_input) {
+                            (Some(v), None, None) => Some(v.clone()),
+                            (None, Some(from), None) => Some(
                                 variables
                                     .get(from)
-                                    .ok_or_else(|| format!("missing Plan variable {from}"))?
+                                    .ok_or_else(|| format!("missing Recipe variable {from}"))?
+                                    .clone(),
+                            ),
+                            (None, None, Some(input)) => Some(
+                                input_choices
+                                    .get(&input.input)
+                                    .and_then(|choice| choice.labels.get(&input.label))
+                                    .ok_or_else(|| {
+                                        format!(
+                                            "missing input label {}.{}",
+                                            input.input, input.label
+                                        )
+                                    })?
                                     .clone(),
                             ),
                             _ => return Err(format!("invalid binding for {}", v.name)),
@@ -360,7 +530,7 @@ impl Solver<'_> {
                     }
                 }
                 if call.variables.len()
-                    != step
+                    != task
                         .spec
                         .inputs
                         .variables
@@ -370,10 +540,10 @@ impl Solver<'_> {
                 {
                     return Err(format!("undeclared variable binding in {name}"));
                 }
-                if call.inputs.artifacts.len() != step.spec.inputs.artifacts.len() {
+                if call.inputs.artifacts.len() != task.spec.inputs.artifacts.len() {
                     return Err(format!("input count mismatch in {name}"));
                 }
-                for port in &step.spec.inputs.artifacts {
+                for port in &task.spec.inputs.artifacts {
                     let b = call
                         .inputs
                         .artifacts
@@ -381,25 +551,25 @@ impl Solver<'_> {
                         .find(|b| b.name == port.name)
                         .ok_or_else(|| format!("missing input {}", port.name))?;
                     let origin = &b.from;
-                    let artifact_type = match (&origin.plan_input, &origin.step, &origin.artifact) {
+                    let kind = match (&origin.recipe_input, &origin.task, &origin.artifact) {
                         (Some(i), None, None) => input_choices
                             .get(i)
-                            .ok_or_else(|| format!("unknown Plan input {i}"))?
-                            .artifact_type
+                            .ok_or_else(|| format!("unknown Recipe input {i}"))?
+                            .kind
                             .clone(),
                         (None, Some(s), Some(a)) => {
                             let producer = statuses
                                 .iter()
-                                .find(|item: &&StepStatus| &item.name == s)
-                                .ok_or_else(|| format!("unknown previous Step {s}"))?;
-                            if !plan
+                                .find(|item: &&TaskStatus| &item.name == s)
+                                .ok_or_else(|| format!("unknown previous Task {s}"))?;
+                            if !recipe
                                 .spec
-                                .steps
+                                .tasks
                                 .iter()
                                 .find(|call| &call.name == s)
                                 .is_some_and(|call| call.outputs.iter().any(|out| &out.name == a))
                             {
-                                return Err(format!("Step output {s}.{a} is not exposed"));
+                                return Err(format!("Task output {s}.{a} is not exposed"));
                             }
                             producer
                                 .definition
@@ -407,22 +577,17 @@ impl Solver<'_> {
                                 .artifacts
                                 .iter()
                                 .find(|p| &p.name == a)
-                                .map(port_type)
-                                .ok_or_else(|| format!("unknown Step output {s}.{a}"))?
+                                .map(|p| p.kind)
+                                .ok_or_else(|| format!("unknown Task output {s}.{a}"))?
                         }
-                        _ => return Err("invalid Step artifact origin".into()),
+                        _ => return Err("invalid Task artifact origin".into()),
                     };
-                    if fase_api::artifact_format(&artifact_type) != Some(port.format)
-                        || port
-                            .artifact_type
-                            .as_ref()
-                            .is_some_and(|t| t != &artifact_type)
-                    {
+                    if kind != port.kind {
                         return Err(format!("type mismatch in {name}.{}", port.name));
                     }
                 }
                 for out in &call.outputs {
-                    if !step
+                    if !task
                         .spec
                         .outputs
                         .artifacts
@@ -432,49 +597,54 @@ impl Solver<'_> {
                         return Err(format!("unknown output {}", out.name));
                     }
                 }
-                statuses.push(StepStatus {
+                statuses.push(TaskStatus {
                     name: name.clone(),
                     phase: Phase::Pending,
                     attempt: 0,
-                    step_ref: PlanReference {
-                        name: step.name_any(),
-                        uid: step.metadata.uid.clone().ok_or("Step UID missing")?,
-                        digest: spec_digest(&step.spec).map_err(|e| e.to_string())?,
+                    task_ref: ObjectReference {
+                        api_version: "skyw.top/v1beta1".into(),
+                        kind: "Task".into(),
+                        name: task.name_any(),
+                        uid: task.metadata.uid.clone().ok_or("Task UID missing")?,
+                        generation: task.metadata.generation.unwrap_or(1),
                     },
-                    definition: step.spec.clone(),
+                    definition: task.spec.clone(),
                     variables: env,
+                    build_key: None,
                     job_ref: None,
                     outputs: BTreeMap::new(),
+                    output_digests: BTreeMap::new(),
+                    claims: BTreeMap::new(),
                     message: None,
                 });
                 pending.remove(&name);
             }
             if before == pending.len() {
-                return Err("DependencyCycle: Step inputs form a cycle".into());
+                return Err("DependencyCycle: Task inputs form a cycle".into());
             }
         }
-        for out in &plan.spec.outputs.artifacts {
+        for out in &recipe.spec.outputs.artifacts {
             let from = &out.from;
-            let step = from
-                .step
+            let task = from
+                .task
                 .as_ref()
-                .ok_or("Plan output must reference Step")?;
+                .ok_or("Recipe output must reference Task")?;
             let artifact = from
                 .artifact
                 .as_ref()
-                .ok_or("Plan output missing artifact")?;
+                .ok_or("Recipe output missing artifact")?;
             let status = statuses
                 .iter()
-                .find(|s| &s.name == step)
-                .ok_or("unknown output Step")?;
-            if !plan
+                .find(|s| &s.name == task)
+                .ok_or("unknown output Task")?;
+            if !recipe
                 .spec
-                .steps
+                .tasks
                 .iter()
-                .find(|s| &s.name == step)
+                .find(|s| &s.name == task)
                 .is_some_and(|s| s.outputs.iter().any(|o| &o.name == artifact))
             {
-                return Err("Plan output is not exposed by Step call".into());
+                return Err("Recipe output is not exposed by Task call".into());
             }
             if !status
                 .definition
@@ -483,10 +653,10 @@ impl Solver<'_> {
                 .iter()
                 .any(|p| &p.name == artifact)
             {
-                return Err("unknown Plan output artifact".into());
+                return Err("unknown Recipe output artifact".into());
             }
         }
-        let source_step = output.from.step.as_ref().ok_or("invalid output Step")?;
+        let source_task = output.from.task.as_ref().ok_or("invalid output Task")?;
         let source_artifact = output
             .from
             .artifact
@@ -494,7 +664,7 @@ impl Solver<'_> {
             .ok_or("invalid output artifact")?;
         let port = statuses
             .iter()
-            .find(|s| &s.name == source_step)
+            .find(|s| &s.name == source_task)
             .and_then(|s| {
                 s.definition
                     .outputs
@@ -503,22 +673,24 @@ impl Solver<'_> {
                     .find(|p| &p.name == source_artifact)
             })
             .ok_or("unknown output port")?;
-        let artifact_type = port_type(port);
-        let plan_name = unique_name(&plan.name_any(), &self.graph);
-        self.graph.push(ResolvedPlanStatus {
-            name: plan_name.clone(),
-            plan_ref: PlanReference {
-                name: plan.name_any(),
-                uid: plan.metadata.uid.clone().ok_or("Plan UID missing")?,
-                digest: spec_digest(&plan.spec).map_err(|e| e.to_string())?,
+        let kind = port.kind;
+        let recipe_name = unique_name(&recipe.name_any(), &self.graph);
+        self.graph.push(ResolvedRecipeStatus {
+            name: recipe_name.clone(),
+            recipe_ref: ObjectReference {
+                api_version: "skyw.top/v1beta1".into(),
+                kind: "Recipe".into(),
+                name: recipe.name_any(),
+                uid: recipe.metadata.uid.clone().ok_or("Recipe UID missing")?,
+                generation: recipe.metadata.generation.unwrap_or(1),
             },
-            definition: plan.spec.clone(),
+            definition: recipe.spec.clone(),
             variables,
             phase: Phase::Pending,
             inputs: ResolvedInputs { artifacts: inputs },
-            steps: statuses,
+            tasks: statuses,
             outputs: ResolvedOutputs {
-                artifacts: plan
+                artifacts: recipe
                     .spec
                     .outputs
                     .artifacts
@@ -530,28 +702,53 @@ impl Solver<'_> {
         self.stack.pop();
         Ok(Choice {
             labels,
-            artifact_type,
+            kind,
+            content_digest: None,
             reference: None,
-            producer: Some((plan_name, output.name.clone())),
+            claim_ref: None,
+            producer: Some((recipe_name, output.name.clone())),
         })
     }
 }
 
+fn diagnostic_reason(message: &str) -> &'static str {
+    if message.starts_with("MissingParameter:")
+        || message.starts_with("missing Recipe variable")
+        || message.starts_with("missing variable")
+        || message.starts_with("missing input label")
+        || message.starts_with("unknown Recipe variable")
+    {
+        "MissingParameter"
+    } else if message.starts_with("WaitingForTask:")
+        || message.starts_with("UnsatisfiedDependency: task")
+    {
+        "WaitingForTask"
+    } else if message.starts_with("WaitingForArtifact:") {
+        "WaitingForArtifact"
+    } else if message.starts_with("DependencyCycle") {
+        "DependencyCycle"
+    } else if message.starts_with("UnsatisfiedDependency") {
+        "UnsatisfiedDependency"
+    } else {
+        "InvalidDefinition"
+    }
+}
+
 fn frozen_labels(
-    plan: &ResolvedPlanStatus,
-    output: &fase_api::PlanOutput,
+    recipe: &ResolvedRecipeStatus,
+    output: &fase_api::RecipeOutput,
 ) -> Result<Labels, String> {
     let mut labels = Labels::new();
     for (key, binding) in &output.labels {
         let value = match binding {
             LabelBinding::Literal(value) => value.value.clone(),
             LabelBinding::Bound(source) => match (&source.from_variable, &source.from_input) {
-                (Some(name), None) => plan
+                (Some(name), None) => recipe
                     .variables
                     .get(name)
-                    .ok_or("missing Plan variable")?
+                    .ok_or("missing Recipe variable")?
                     .clone(),
-                (None, Some(input)) => plan
+                (None, Some(input)) => recipe
                     .inputs
                     .artifacts
                     .iter()
@@ -570,17 +767,7 @@ fn frozen_labels(
     Ok(labels)
 }
 
-fn port_type(port: &fase_api::ArtifactPort) -> String {
-    port.artifact_type.clone().unwrap_or_else(|| {
-        match port.format {
-            fase_api::ArtifactFormat::File => "file",
-            fase_api::ArtifactFormat::Directory => "directory",
-            fase_api::ArtifactFormat::Archive => "tar.zst",
-        }
-        .into()
-    })
-}
-fn unique_name(base: &str, graph: &[ResolvedPlanStatus]) -> String {
+fn unique_name(base: &str, graph: &[ResolvedRecipeStatus]) -> String {
     if !graph.iter().any(|p| p.name == base) {
         return base.into();
     }
@@ -601,7 +788,7 @@ fn forced_value(selector: &LabelSelector, key: &str) -> Option<String> {
             .map(|e| e.values[0].clone())
     })
 }
-fn may_match(out: &fase_api::PlanOutput, demand: &LabelSelector, variables: &Variables) -> bool {
+fn may_match(out: &fase_api::RecipeOutput, demand: &LabelSelector, variables: &Variables) -> bool {
     for (key, binding) in &out.labels {
         let known = match binding {
             LabelBinding::Literal(v) => Some(&v.value),
@@ -641,98 +828,219 @@ fn may_match(out: &fase_api::PlanOutput, demand: &LabelSelector, variables: &Var
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fase_api::{ArtifactSpec, Phase};
+    use fase_api::{
+        ArtifactClaimSpec, ArtifactSpec, ObjectReference, Phase, ProducerReference,
+        StorageReference,
+    };
     use serde::Deserialize;
 
-    fn example() -> (Vec<Step>, Vec<Plan>, Request) {
-        let mut steps = Vec::new();
-        let mut plans = Vec::new();
+    fn example() -> (Vec<Task>, Vec<Recipe>, Request) {
+        let mut tasks = Vec::new();
+        let mut recipes = Vec::new();
         let mut request = None;
         for doc in serde_yml::Deserializer::from_str(include_str!("../../examples/hello.yaml")) {
             let value = serde_json::Value::deserialize(doc).unwrap();
             match value["kind"].as_str().unwrap() {
-                "Step" => steps.push(serde_json::from_value::<Step>(value).unwrap()),
-                "Plan" => plans.push(serde_json::from_value::<Plan>(value).unwrap()),
+                "Task" => tasks.push(serde_json::from_value::<Task>(value).unwrap()),
+                "Recipe" => recipes.push(serde_json::from_value::<Recipe>(value).unwrap()),
                 "Request" => request = Some(serde_json::from_value::<Request>(value).unwrap()),
                 other => panic!("unexpected resource {other}"),
             }
         }
-        for (i, step) in steps.iter_mut().enumerate() {
-            step.metadata.uid = Some(format!("step-{i}"));
+        for (i, task) in tasks.iter_mut().enumerate() {
+            task.metadata.uid = Some(format!("task-{i}"));
         }
-        for (i, plan) in plans.iter_mut().enumerate() {
-            plan.metadata.uid = Some(format!("plan-{i}"));
+        for (i, recipe) in recipes.iter_mut().enumerate() {
+            recipe.metadata.uid = Some(format!("recipe-{i}"));
         }
-        (steps, plans, request.unwrap())
+        (tasks, recipes, request.unwrap())
     }
 
     #[test]
     fn expands_dependencies_and_propagates_requested_version() {
-        let (steps, plans, request) = example();
-        let graph = resolve(&request, &plans, &steps, &[]).unwrap();
+        let (tasks, recipes, request) = example();
+        let graph = resolve(&request, &recipes, &tasks, &[], &[]).unwrap();
         assert_eq!(
             graph
-                .plans
+                .recipes
                 .iter()
                 .map(|p| p.name.as_str())
                 .collect::<Vec<_>>(),
             vec!["hello-source", "hello-package"]
         );
-        assert_eq!(graph.plans[1].inputs.artifacts[0].labels["version"], "1.0");
         assert_eq!(
-            graph.plans[1].inputs.artifacts[0]
+            graph.recipes[1].inputs.artifacts[0].labels["version"],
+            "1.0"
+        );
+        assert_eq!(
+            graph.recipes[1].inputs.artifacts[0]
                 .from
-                .resolved_plan
+                .resolved_recipe
                 .as_deref(),
             Some("hello-source")
         );
         assert_eq!(graph.target_output.as_deref(), Some("package"));
-        assert_eq!(graph.plans[0].steps[0].variables["FASE_VAR_VERSION"], "1.0");
-        assert_eq!(graph.plans[1].steps[0].phase, Phase::Pending);
+        assert_eq!(
+            graph.recipes[0].tasks[0].variables["FASE_VAR_VERSION"],
+            "1.0"
+        );
+        assert_eq!(graph.recipes[1].tasks[0].phase, Phase::Pending);
     }
 
     #[test]
-    fn existing_artifact_binds_without_source_plan_and_ambiguity_fails() {
-        let (steps, plans, request) = example();
-        let mut first = Artifact::new(
+    fn existing_claim_binds_without_source_recipe_and_multiple_claims_warn() {
+        let (tasks, recipes, request) = example();
+        let first = Artifact::new(
             "art-first",
             ArtifactSpec {
-                name: "source".into(),
-                artifact_type: "directory".into(),
+                content_digest: format!("sha256:{}", "0".repeat(64)),
+                size_bytes: 0,
+                kind: fase_api::ArtifactKind::Tree,
+                storage_ref: StorageReference {
+                    key: "objects/art-first".into(),
+                },
             },
         );
-        first.metadata.labels = Some(Labels::from([
+        let object_ref = ObjectReference {
+            api_version: "skyw.top/v1beta1".into(),
+            kind: "Recipe".into(),
+            name: "test".into(),
+            uid: "uid".into(),
+            generation: 1,
+        };
+        let mut claim = ArtifactClaim::new(
+            "claim-first",
+            ArtifactClaimSpec {
+                artifact_ref: ArtifactReference {
+                    name: "art-first".into(),
+                },
+                build_key: "sha256:test".into(),
+                producer: ProducerReference {
+                    recipe_ref: object_ref.clone(),
+                    run_ref: object_ref,
+                },
+            },
+        );
+        claim.metadata.labels = Some(Labels::from([
             ("name".into(), "hello-source".into()),
             ("version".into(), "1.0".into()),
         ]));
-        let graph = resolve(&request, &plans, &steps, &[first.clone()]).unwrap();
-        assert_eq!(graph.plans.len(), 1);
+        let graph = resolve(
+            &request,
+            &recipes,
+            &tasks,
+            &[first.clone()],
+            &[claim.clone()],
+        )
+        .unwrap();
+        assert_eq!(graph.recipes.len(), 1);
         assert_eq!(
-            graph.plans[0].inputs.artifacts[0]
+            graph.recipes[0].inputs.artifacts[0]
                 .artifact_ref
                 .as_ref()
                 .unwrap()
                 .name,
             "art-first"
         );
-        let mut second = first.clone();
-        second.metadata.name = Some("art-second".into());
+        let mut second = claim.clone();
+        second.metadata.name = Some("claim-second".into());
+        let graph = resolve(&request, &recipes, &tasks, &[first], &[claim, second]).unwrap();
         assert!(
-            resolve(&request, &plans, &steps, &[first, second])
-                .unwrap_err()
-                .contains("AmbiguousArtifact")
+            graph
+                .warnings
+                .iter()
+                .any(|w| w.contains("multiple ArtifactClaims"))
         );
     }
 
     #[test]
+    fn rerun_builds_target_again_when_a_claim_already_exists() {
+        let (tasks, recipes, mut request) = example();
+        request.spec.rerun = 1;
+        let artifact = Artifact::new(
+            "art-old",
+            ArtifactSpec {
+                content_digest: format!("sha256:{}", "0".repeat(64)),
+                size_bytes: 0,
+                kind: fase_api::ArtifactKind::Tree,
+                storage_ref: StorageReference {
+                    key: "objects/art-old".into(),
+                },
+            },
+        );
+        let object_ref = ObjectReference {
+            api_version: "skyw.top/v1beta1".into(),
+            kind: "Recipe".into(),
+            name: "old".into(),
+            uid: "uid".into(),
+            generation: 1,
+        };
+        let mut claim = ArtifactClaim::new(
+            "claim-old",
+            ArtifactClaimSpec {
+                artifact_ref: ArtifactReference {
+                    name: "art-old".into(),
+                },
+                build_key: "sha256:old".into(),
+                producer: ProducerReference {
+                    recipe_ref: object_ref.clone(),
+                    run_ref: object_ref,
+                },
+            },
+        );
+        claim.metadata.labels = Some(Labels::from([
+            ("name".into(), "hello-package".into()),
+            ("version".into(), "1.0".into()),
+            ("arch".into(), "amd64".into()),
+        ]));
+        let graph = resolve(&request, &recipes, &tasks, &[artifact], &[claim]).unwrap();
+        assert!(graph.artifact_ref.is_none());
+        assert_eq!(
+            graph.recipes.last().unwrap().recipe_ref.name,
+            "hello-package"
+        );
+    }
+
+    #[test]
+    fn missing_task_has_candidate_diagnostic_and_can_wait_for_definition() {
+        let (tasks, recipes, mut request) = example();
+        request
+            .spec
+            .artifact_selector
+            .match_labels
+            .insert("name".into(), "hello-source".into());
+        request.spec.artifact_selector.match_labels.remove("arch");
+        let tasks = tasks
+            .into_iter()
+            .filter(|task| task.name_any() != "make-source")
+            .collect::<Vec<_>>();
+        let error = resolve(&request, &recipes, &tasks, &[], &[]).unwrap_err();
+        assert_eq!(error.reason, "WaitingForTask");
+        assert_eq!(error.diagnostics[0].candidate, "hello-source/source");
+        assert_eq!(error.diagnostics[0].reason, "WaitingForTask");
+
+        let (tasks, recipes, request) = example();
+        let tasks = tasks
+            .into_iter()
+            .filter(|task| task.name_any() != "make-source")
+            .collect::<Vec<_>>();
+        let error = resolve(&request, &recipes, &tasks, &[], &[]).unwrap_err();
+        assert_eq!(error.reason, "WaitingForTask");
+        assert_eq!(error.diagnostics[0].candidate, "hello-package/package");
+    }
+
+    #[test]
     fn two_inputs_reuse_one_resolved_producer() {
-        let (steps, mut plans, request) = example();
-        let mut second = plans[1].spec.inputs.artifacts[0].clone();
+        let (tasks, mut recipes, request) = example();
+        let mut second = recipes[1].spec.inputs.artifacts[0].clone();
         second.name = "also-source".into();
-        plans[1].spec.inputs.artifacts.push(second);
-        let graph = resolve(&request, &plans, &steps, &[]).unwrap();
-        assert_eq!(graph.plans.len(), 2);
-        let inputs = &graph.plans[1].inputs.artifacts;
-        assert_eq!(inputs[0].from.resolved_plan, inputs[1].from.resolved_plan);
+        recipes[1].spec.inputs.artifacts.push(second);
+        let graph = resolve(&request, &recipes, &tasks, &[], &[]).unwrap();
+        assert_eq!(graph.recipes.len(), 2);
+        let inputs = &graph.recipes[1].inputs.artifacts;
+        assert_eq!(
+            inputs[0].from.resolved_recipe,
+            inputs[1].from.resolved_recipe
+        );
     }
 }

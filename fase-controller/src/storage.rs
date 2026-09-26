@@ -1,5 +1,5 @@
 use fase_api::sha256_hex;
-use fase_api::{ArtifactFormat, ArtifactSpec};
+use fase_api::{ArtifactKind, ArtifactSpec};
 use object_store::{
     ObjectStore, ObjectStoreExt, PutMode, PutPayload,
     aws::{AmazonS3Builder, S3ConditionalPut},
@@ -92,10 +92,15 @@ impl Store {
     pub async fn get(
         &self,
         artifact_name: &str,
-        _spec: &ArtifactSpec,
-        format: ArtifactFormat,
+        spec: &ArtifactSpec,
+        kind: ArtifactKind,
         max_bytes: u64,
     ) -> Result<Vec<u8>, String> {
+        if spec.kind != kind || spec.storage_ref.key != format!("objects/{artifact_name}") {
+            return Err(format!(
+                "Artifact {artifact_name} has invalid storage reference"
+            ));
+        }
         let path = self.object_path(artifact_name)?;
         let result = self
             .inner
@@ -108,10 +113,17 @@ impl Store {
             ));
         }
         let bytes = result.bytes().await.map_err(|error| error.to_string())?;
-        let actual_name = artifact_id(&sha256_hex(&bytes), format);
+        let actual_name = artifact_id(&sha256_hex(&bytes), kind);
         if artifact_name != actual_name {
             return Err(format!(
                 "Artifact {artifact_name} failed content identity verification"
+            ));
+        }
+        if spec.content_digest != format!("sha256:{}", sha256_hex(&bytes))
+            || spec.size_bytes != bytes.len() as i64
+        {
+            return Err(format!(
+                "Artifact {artifact_name} failed digest or size verification"
             ));
         }
         Ok(bytes.to_vec())
@@ -167,10 +179,8 @@ impl Store {
 
 /// Return the immutable object identity for an artifact.
 ///
-/// The logical name in `Artifact.spec.name` is deliberately excluded. Two
-/// callers may publish the same bytes under different logical names; they
-/// must refer to the same immutable object rather than creating conflicting
-/// Kubernetes objects.
+/// The logical label is deliberately excluded. Two callers may publish the
+/// same bytes under different Claim labels while sharing this Artifact.
 pub fn valid_sha256(value: &str) -> bool {
     value.len() == 64
         && value
@@ -182,60 +192,26 @@ pub fn valid_artifact_name(name: &str) -> bool {
     name.strip_prefix("art-").is_some_and(valid_sha256)
 }
 
-pub fn artifact_id(sha256: &str, format: ArtifactFormat) -> String {
-    let label = match format {
-        ArtifactFormat::File => "file",
-        ArtifactFormat::Directory => "directory",
-        ArtifactFormat::Archive => "archive",
+pub fn artifact_id(sha256: &str, kind: ArtifactKind) -> String {
+    let label = match kind {
+        ArtifactKind::File => "file",
+        ArtifactKind::Tree => "tree",
     };
     let bytes = format!("fase-artifact-v1\0{sha256}\0{label}");
     format!("art-{}", sha256_hex(bytes.as_bytes()))
 }
 
-pub fn collect(path: &FsPath, format: ArtifactFormat) -> Result<Vec<u8>, String> {
-    match format {
-        ArtifactFormat::File => {
+pub fn collect(path: &FsPath, kind: ArtifactKind) -> Result<Vec<u8>, String> {
+    match kind {
+        ArtifactKind::File => {
             let meta = std::fs::symlink_metadata(path).map_err(|error| error.to_string())?;
             if !meta.is_file() || meta.file_type().is_symlink() {
                 return Err(format!("{} is not a regular file", path.display()));
             }
             std::fs::read(path).map_err(|error| error.to_string())
         }
-        ArtifactFormat::Directory => pack_directory(path),
-        ArtifactFormat::Archive => {
-            let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
-            validate_archive(&bytes)?;
-            Ok(bytes)
-        }
+        ArtifactKind::Tree => pack_directory(path),
     }
-}
-
-fn validate_archive(bytes: &[u8]) -> Result<(), String> {
-    let decoder = zstd::stream::Decoder::new(bytes).map_err(|e| e.to_string())?;
-    let mut archive = tar::Archive::new(decoder);
-    let mut expanded = 0u64;
-    for (index, entry) in archive.entries().map_err(|e| e.to_string())?.enumerate() {
-        if index >= 100_000 {
-            return Err("archive has too many entries".into());
-        }
-        let entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path().map_err(|e| e.to_string())?;
-        if !fase_api::valid_path(path.to_str().ok_or("non UTF-8 archive path")?)
-            || !matches!(
-                entry.header().entry_type(),
-                tar::EntryType::Regular | tar::EntryType::Directory
-            )
-        {
-            return Err("unsafe archive entry".into());
-        }
-        expanded = expanded
-            .checked_add(entry.size())
-            .ok_or("archive size overflow")?;
-        if expanded > 2 * 1024 * 1024 * 1024 {
-            return Err("archive expands beyond 2 GiB".into());
-        }
-    }
-    Ok(())
 }
 
 pub fn checked_output_path(root: &FsPath, relative: &str) -> Result<PathBuf, String> {
@@ -283,6 +259,19 @@ fn pack_directory(root: &FsPath) -> Result<Vec<u8>, String> {
             archive
                 .append_data(&mut header, &rel, std::io::empty())
                 .map_err(|error| error.to_string())?;
+        } else if meta.file_type().is_symlink() {
+            let target = std::fs::read_link(&path).map_err(|e| e.to_string())?;
+            if !safe_link_target(&rel, &target) {
+                return Err(format!("unsafe symlink {}", path.display()));
+            }
+            header.set_entry_type(tar::EntryType::Symlink);
+            header.set_size(0);
+            header.set_mode(0o777);
+            header.set_link_name(&target).map_err(|e| e.to_string())?;
+            header.set_cksum();
+            archive
+                .append_data(&mut header, &rel, std::io::empty())
+                .map_err(|e| e.to_string())?;
         } else {
             header.set_entry_type(tar::EntryType::Regular);
             header.set_size(meta.len());
@@ -305,7 +294,7 @@ fn visit(root: &FsPath, dir: &FsPath, found: &mut Vec<PathBuf>) -> Result<(), St
         let entry = entry.map_err(|error| error.to_string())?;
         let path = entry.path();
         let meta = std::fs::symlink_metadata(&path).map_err(|error| error.to_string())?;
-        if !(meta.is_dir() || meta.is_file()) || meta.file_type().is_symlink() {
+        if !(meta.is_dir() || meta.is_file() || meta.file_type().is_symlink()) {
             return Err(format!("unsafe output {}", path.display()));
         }
         found.push(
@@ -333,24 +322,29 @@ fn executable(_: &std::fs::Metadata) -> bool {
 pub fn materialize(
     root: &FsPath,
     path: &str,
-    format: ArtifactFormat,
+    kind: ArtifactKind,
     bytes: &[u8],
 ) -> Result<(), String> {
     if !fase_api::valid_path(path) {
         return Err(format!("unsafe input path {path}"));
     }
+    ensure_no_symlink_parents(root, FsPath::new(path))?;
     let target = root.join(path);
-    match format {
-        ArtifactFormat::File => {
+    match kind {
+        ArtifactKind::File => {
+            if std::fs::symlink_metadata(&target).is_ok() {
+                return Err("input path already exists".into());
+            }
             std::fs::create_dir_all(target.parent().ok_or("invalid input parent")?)
                 .map_err(|error| error.to_string())?;
             std::fs::write(target, bytes).map_err(|error| error.to_string())
         }
-        ArtifactFormat::Archive => {
-            let decoder = zstd::stream::Decoder::new(bytes).map_err(|e| e.to_string())?;
-            extract_tar(&target, decoder)
+        ArtifactKind::Tree => {
+            if std::fs::symlink_metadata(&target).is_ok() {
+                return Err("input tree path already exists".into());
+            }
+            extract_tar(&target, bytes)
         }
-        ArtifactFormat::Directory => extract_tar(&target, bytes),
     }
 }
 
@@ -383,11 +377,18 @@ fn extract_tar(target: &FsPath, reader: impl std::io::Read) -> Result<(), String
             return Err("unsafe archive path".into());
         }
         let destination = target.join(rel);
+        let relative = destination
+            .strip_prefix(target)
+            .map_err(|e| e.to_string())?;
+        ensure_no_symlink_parents(target, relative)?;
         match entry.header().entry_type() {
             tar::EntryType::Directory => {
                 std::fs::create_dir_all(destination).map_err(|error| error.to_string())?
             }
             tar::EntryType::Regular => {
+                if std::fs::symlink_metadata(&destination).is_ok() {
+                    return Err("duplicate archive entry".into());
+                }
                 std::fs::create_dir_all(destination.parent().ok_or("invalid archive parent")?)
                     .map_err(|error| error.to_string())?;
                 let mut file =
@@ -406,7 +407,56 @@ fn extract_tar(target: &FsPath, reader: impl std::io::Read) -> Result<(), String
                         .map_err(|error| error.to_string())?;
                 }
             }
+            tar::EntryType::Symlink => {
+                let link = entry
+                    .link_name()
+                    .map_err(|e| e.to_string())?
+                    .ok_or("missing symlink target")?;
+                if !safe_link_target(relative, &link)
+                    || std::fs::symlink_metadata(&destination).is_ok()
+                {
+                    return Err("unsafe symlink entry".into());
+                }
+                std::fs::create_dir_all(destination.parent().ok_or("invalid symlink parent")?)
+                    .map_err(|e| e.to_string())?;
+                #[cfg(unix)]
+                std::os::unix::fs::symlink(&link, &destination).map_err(|e| e.to_string())?;
+                #[cfg(not(unix))]
+                return Err("symlink extraction is unsupported on this platform".into());
+            }
             _ => return Err("archive contains unsupported entry".into()),
+        }
+    }
+    Ok(())
+}
+
+fn safe_link_target(link: &FsPath, target: &FsPath) -> bool {
+    use std::path::Component;
+    let mut depth = link.parent().map_or(0, |p| p.components().count());
+    if target.is_absolute() || target.as_os_str().is_empty() {
+        return false;
+    }
+    for part in target.components() {
+        match part {
+            Component::Normal(_) => depth += 1,
+            Component::ParentDir if depth > 0 => depth -= 1,
+            Component::CurDir => {}
+            _ => return false,
+        }
+    }
+    true
+}
+
+fn ensure_no_symlink_parents(root: &FsPath, relative: &FsPath) -> Result<(), String> {
+    let mut current = root.to_path_buf();
+    for component in relative
+        .parent()
+        .ok_or("invalid archive parent")?
+        .components()
+    {
+        current.push(component.as_os_str());
+        if std::fs::symlink_metadata(&current).is_ok_and(|m| m.file_type().is_symlink()) {
+            return Err("archive path traverses symlink".into());
         }
     }
     Ok(())
@@ -423,22 +473,26 @@ mod tests {
             prefix: "test".into(),
         };
         let bytes = b"hello".to_vec();
+        let name = artifact_id(&sha256_hex(&bytes), ArtifactKind::File);
         let spec = ArtifactSpec {
-            name: "greeting".into(),
-            artifact_type: "file".into(),
+            content_digest: format!("sha256:{}", sha256_hex(&bytes)),
+            size_bytes: bytes.len() as i64,
+            kind: ArtifactKind::File,
+            storage_ref: fase_api::StorageReference {
+                key: format!("objects/{name}"),
+            },
         };
-        let name = artifact_id(&sha256_hex(&bytes), ArtifactFormat::File);
         store.put(&name, bytes.clone(), u64::MAX).await.unwrap();
         assert_eq!(
             store
-                .get(&name, &spec, ArtifactFormat::File, u64::MAX)
+                .get(&name, &spec, ArtifactKind::File, u64::MAX)
                 .await
                 .unwrap(),
             bytes
         );
         assert!(
             store
-                .get("art-wrong", &spec, ArtifactFormat::File, u64::MAX)
+                .get("art-wrong", &spec, ArtifactKind::File, u64::MAX)
                 .await
                 .is_err()
         );
@@ -447,8 +501,8 @@ mod tests {
     #[test]
     fn artifact_identity_is_content_based_and_rejects_path_shapes() {
         let digest = sha256_hex(b"same");
-        let file = artifact_id(&digest, ArtifactFormat::File);
-        let directory = artifact_id(&digest, ArtifactFormat::Directory);
+        let file = artifact_id(&digest, ArtifactKind::File);
+        let directory = artifact_id(&digest, ArtifactKind::Tree);
         assert_ne!(file, directory);
         assert!(valid_artifact_name(&file));
         assert!(!valid_artifact_name("art-../escape"));
@@ -456,7 +510,7 @@ mod tests {
     }
 
     #[test]
-    fn directory_archive_is_deterministic_and_preserves_executable_files() {
+    fn tree_is_deterministic_and_preserves_executable_files() {
         let temp = tempfile::tempdir().unwrap();
         let source = temp.path().join("source");
         std::fs::create_dir(&source).unwrap();
@@ -467,25 +521,11 @@ mod tests {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
         }
-        let first = collect(&source, ArtifactFormat::Directory).unwrap();
-        let second = collect(&source, ArtifactFormat::Directory).unwrap();
+        let first = collect(&source, ArtifactKind::Tree).unwrap();
+        let second = collect(&source, ArtifactKind::Tree).unwrap();
         assert_eq!(first, second);
         let input_root = temp.path().join("input");
-        materialize(&input_root, "tree", ArtifactFormat::Directory, &first).unwrap();
-        let compressed = zstd::stream::encode_all(first.as_slice(), 1).unwrap();
-        let archive_path = temp.path().join("source.tar.zst");
-        std::fs::write(&archive_path, &compressed).unwrap();
-        assert_eq!(
-            collect(&archive_path, ArtifactFormat::Archive).unwrap(),
-            compressed
-        );
-        materialize(&input_root, "archive", ArtifactFormat::Archive, &compressed).unwrap();
-        assert_eq!(
-            std::fs::read(input_root.join("archive/bin")).unwrap(),
-            b"#!/bin/sh\nexit 0\n"
-        );
-        std::fs::write(&archive_path, b"not an archive").unwrap();
-        assert!(collect(&archive_path, ArtifactFormat::Archive).is_err());
+        materialize(&input_root, "tree", ArtifactKind::Tree, &first).unwrap();
         assert_eq!(
             std::fs::read(input_root.join("tree/bin")).unwrap(),
             b"#!/bin/sh\nexit 0\n"
@@ -510,5 +550,23 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         std::os::unix::fs::symlink("/etc", temp.path().join("escape")).unwrap();
         assert!(checked_output_path(temp.path(), "escape/passwd").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn tree_preserves_safe_symlinks_and_rejects_escaping_links() {
+        let temp = tempfile::tempdir().unwrap();
+        let source = temp.path().join("source");
+        std::fs::create_dir(&source).unwrap();
+        std::fs::write(source.join("data"), b"safe").unwrap();
+        std::os::unix::fs::symlink("data", source.join("alias")).unwrap();
+        let bytes = collect(&source, ArtifactKind::Tree).unwrap();
+        materialize(temp.path(), "restored", ArtifactKind::Tree, &bytes).unwrap();
+        assert_eq!(
+            std::fs::read_link(temp.path().join("restored/alias")).unwrap(),
+            std::path::Path::new("data")
+        );
+        std::os::unix::fs::symlink("../../etc/passwd", source.join("escape")).unwrap();
+        assert!(collect(&source, ArtifactKind::Tree).is_err());
     }
 }

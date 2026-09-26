@@ -1,6 +1,6 @@
 use crate::transfer::JobManifest;
 use fase_api::sha256_hex;
-use fase_api::{Request, StepStatus};
+use fase_api::{Run, TaskStatus};
 use k8s_openapi::api::{batch::v1::Job, core::v1::ConfigMap};
 use kube::ResourceExt;
 use serde_json::json;
@@ -17,7 +17,7 @@ pub struct JobSettings {
     pub allow_insecure_s3: bool,
     pub s3_anonymous: bool,
     pub max_artifact_bytes: u64,
-    pub step_timeout_seconds: u64,
+    pub task_timeout_seconds: u64,
     pub read_secret: String,
     pub write_secret: String,
 }
@@ -49,11 +49,11 @@ impl JobSettings {
         if max_artifact_bytes == 0 || max_artifact_bytes > 8 * 1024 * 1024 * 1024 {
             return Err("FASE_MAX_ARTIFACT_BYTES must be between 1 and 8589934592".into());
         }
-        let step_timeout_seconds = std::env::var("FASE_STEP_TIMEOUT_SECONDS")
+        let task_timeout_seconds = std::env::var("FASE_STEP_TIMEOUT_SECONDS")
             .unwrap_or_else(|_| "3600".into())
             .parse::<u64>()
             .map_err(|_| "FASE_STEP_TIMEOUT_SECONDS must be a positive integer".to_owned())?;
-        if step_timeout_seconds == 0 || step_timeout_seconds > 7 * 24 * 60 * 60 {
+        if task_timeout_seconds == 0 || task_timeout_seconds > 7 * 24 * 60 * 60 {
             return Err("FASE_STEP_TIMEOUT_SECONDS must be between 1 and 604800".into());
         }
         Ok(Self {
@@ -66,7 +66,7 @@ impl JobSettings {
             allow_insecure_s3,
             s3_anonymous,
             max_artifact_bytes,
-            step_timeout_seconds,
+            task_timeout_seconds,
             read_secret: required("FASE_S3_READ_SECRET")?,
             write_secret: required("FASE_S3_WRITE_SECRET")?,
         })
@@ -74,25 +74,25 @@ impl JobSettings {
 }
 
 pub fn job_name(
-    request: &Request,
-    plan_name: &str,
-    step: &StepStatus,
+    run: &Run,
+    recipe_name: &str,
+    task: &TaskStatus,
     attempt: i32,
     settings: &JobSettings,
     manifest: &JobManifest,
 ) -> Result<String, String> {
-    let uid = request
+    let uid = run
         .metadata
         .uid
         .as_deref()
         .ok_or("Request UID is required")?;
     let identity = json!([
         uid,
-        plan_name,
-        &step.step_ref,
-        &step.definition,
-        &step.variables,
-        &step.name,
+        recipe_name,
+        &task.task_ref,
+        &task.definition,
+        &task.variables,
+        &task.name,
         attempt,
         &settings.helper_image,
         &settings.output_service_account,
@@ -103,14 +103,14 @@ pub fn job_name(
         settings.allow_insecure_s3,
         settings.s3_anonymous,
         settings.max_artifact_bytes,
-        settings.step_timeout_seconds,
+        settings.task_timeout_seconds,
         &settings.read_secret,
         &settings.write_secret,
         manifest,
     ]);
     let bytes = serde_json::to_vec(&identity).map_err(|error| error.to_string())?;
     let suffix = sha256_hex(&bytes);
-    let raw = format!("{}-{}", request.name_any(), step.name);
+    let raw = format!("{}-{}", run.name_any(), task.name);
     let prefix = dns_label(&raw);
     let prefix = prefix
         .chars()
@@ -122,20 +122,20 @@ pub fn job_name(
 }
 
 pub fn resources(
-    request: &Request,
-    step: &StepStatus,
+    run: &Run,
+    task: &TaskStatus,
     manifest: &JobManifest,
     name: &str,
     settings: &JobSettings,
     injected_env: Vec<serde_json::Value>,
 ) -> Result<(ConfigMap, Job), String> {
-    let namespace = request.namespace().ok_or("Request namespace is required")?;
-    let uid = request
+    let namespace = run.namespace().ok_or("Run namespace is required")?;
+    let uid = run
         .metadata
         .uid
         .as_deref()
         .ok_or("Request UID is required")?;
-    let owner = json!([{"apiVersion":"skyw.top/v1alpha1","kind":"Request","name":request.name_any(),"uid":uid,"controller":true,"blockOwnerDeletion":false}]);
+    let owner = json!([{"apiVersion":"skyw.top/v1beta1","kind":"Run","name":run.name_any(),"uid":uid,"controller":true,"blockOwnerDeletion":false}]);
     let config_name = format!("{name}-cfg");
     let config: ConfigMap = serde_json::from_value(json!({
         "apiVersion":"v1","kind":"ConfigMap",
@@ -143,7 +143,7 @@ pub fn resources(
         "immutable":true,
         "data":{
             "manifest.json":serde_json::to_string(manifest).map_err(|error| error.to_string())?,
-            "script":step.definition.script,
+            "script":task.definition.script,
             "entrypoint.sh":"#!/bin/sh\nexec \"$@\" /run/fase/config/script\n"
         }
     }))
@@ -157,7 +157,7 @@ pub fn resources(
         {"name":"FASE_ALLOW_INSECURE_S3","value":settings.allow_insecure_s3.to_string()},
         {"name":"FASE_S3_ANONYMOUS","value":settings.s3_anonymous.to_string()},
         {"name":"FASE_MAX_ARTIFACT_BYTES","value":settings.max_artifact_bytes.to_string()},
-        {"name":"FASE_STEP_TIMEOUT_SECONDS","value":settings.step_timeout_seconds.to_string()},
+        {"name":"FASE_STEP_TIMEOUT_SECONDS","value":settings.task_timeout_seconds.to_string()},
         {"name":"FASE_INPUT_ROOT","value":"/in"},
         {"name":"FASE_OUTPUT_ROOT","value":"/out"},
         {"name":"FASE_RUN_ROOT","value":"/run/fase"}
@@ -183,10 +183,10 @@ pub fn resources(
         json!({"name":"FASE_OUTPUT_ROOT","value":"/out"}),
         json!({"name":"FASE_RUN_ROOT","value":"/run/fase"}),
     ];
-    for (name, value) in &step.variables {
+    for (name, value) in &task.variables {
         main_env.push(json!({"name":name,"value":value}));
     }
-    for entry in &step.definition.env {
+    for entry in &task.definition.env {
         main_env.push(serde_json::to_value(entry).map_err(|e| e.to_string())?);
     }
     main_env.extend(injected_env);
@@ -195,23 +195,47 @@ pub fn resources(
         "requests":{"cpu":"100m","memory":"128Mi","ephemeral-storage":"1Gi"},
         "limits":{"cpu":"1","memory":"1Gi","ephemeral-storage":"2Gi"}
     });
-    let shell = step
+    let shell = task
         .definition
         .command
         .first()
-        .ok_or("Step command is required")?;
+        .ok_or("Task command is required")?;
     let main_command = vec![shell.as_str(), "/run/fase/config/entrypoint.sh"];
-    let main_args = step.definition.command.clone();
-    let request_label = label_value(&request.name_any());
+    let main_args = task.definition.command.clone();
+    let request_label = label_value(&run.spec.request_ref.name);
+    let job_key = sha256_hex(
+        &serde_json::to_vec(&json!([
+            run.spec.request_ref,
+            task.task_ref,
+            task.definition,
+            task.variables,
+            task.attempt,
+            manifest,
+            settings.helper_image,
+            settings.output_service_account,
+            settings.s3_bucket,
+            settings.s3_endpoint,
+            settings.s3_region,
+            settings.s3_prefix,
+            settings.allow_insecure_s3,
+            settings.s3_anonymous,
+            settings.max_artifact_bytes,
+            settings.task_timeout_seconds,
+            settings.read_secret,
+            settings.write_secret,
+        ]))
+        .map_err(|error| error.to_string())?,
+    );
     let labels = BTreeMap::from([
         ("app.kubernetes.io/name".to_string(), "fase".to_string()),
         ("skyw.top/request".to_string(), request_label),
-        ("skyw.top/step".to_string(), label_value(&step.name)),
+        ("skyw.top/task".to_string(), label_value(&task.name)),
     ]);
     let mut job: Job = serde_json::from_value(json!({
         "apiVersion":"batch/v1","kind":"Job",
-        "metadata":{"name":name,"namespace":namespace,"labels":labels,"ownerReferences":owner},
-        "spec":{"backoffLimit":0,"activeDeadlineSeconds":settings.step_timeout_seconds + 600,"ttlSecondsAfterFinished":86400,
+        "metadata":{"name":name,"namespace":namespace,"labels":labels,
+            "annotations":{"skyw.top/job-key":job_key},"ownerReferences":owner},
+        "spec":{"backoffLimit":0,"activeDeadlineSeconds":settings.task_timeout_seconds + 600,"ttlSecondsAfterFinished":86400,
             "template":{"metadata":{"labels":labels},"spec":{
                 "restartPolicy":"Never","automountServiceAccountToken":false,
                 "serviceAccountName":settings.output_service_account,
@@ -221,7 +245,7 @@ pub fn resources(
                     {"name":"inputs","emptyDir":{"sizeLimit":"2Gi"}},
                     {"name":"outputs","emptyDir":{"sizeLimit":"2Gi"}},
                     {"name":"input-temp","emptyDir":{"sizeLimit":"2Gi"}},
-                    {"name":"step-temp","emptyDir":{"sizeLimit":"2Gi"}},
+                    {"name":"task-temp","emptyDir":{"sizeLimit":"2Gi"}},
                     {"name":"output-temp","emptyDir":{"sizeLimit":"2Gi"}},
                     {"name":"config","configMap":{"name":config_name}},
                     {"name":"output-token","projected":{"sources":[{"serviceAccountToken":{"path":"token","expirationSeconds":7200}},{"configMap":{"name":"kube-root-ca.crt","items":[{"key":"ca.crt","path":"ca.crt"}]}},{"downwardAPI":{"items":[{"path":"namespace","fieldRef":{"fieldPath":"metadata.namespace"}}]}}]}}
@@ -239,14 +263,14 @@ pub fn resources(
                 }],
                 "containers":[
                     {
-                        "name":"step","image":step.definition.image,
+                        "name":"task","image":task.definition.image,
                         "command":main_command,"args":main_args,
                         "env":main_env,"securityContext":restricted,"resources":resources.clone(),
                         "volumeMounts":[
                             {"name":"inputs","mountPath":"/in","readOnly":true},
                             {"name":"outputs","mountPath":"/out"},
                                 {"name":"config","mountPath":"/run/fase/config","readOnly":true},
-                            {"name":"step-temp","mountPath":"/tmp"}
+                            {"name":"task-temp","mountPath":"/tmp"}
                         ]
                     },
                     {
@@ -267,7 +291,7 @@ pub fn resources(
     })).map_err(|error| error.to_string())?;
     let pod = job.spec.as_mut().unwrap().template.spec.as_mut().unwrap();
     pod.image_pull_secrets = Some(
-        step.definition
+        task.definition
             .image_pull_secrets
             .iter()
             .map(|r| k8s_openapi::api::core::v1::LocalObjectReference {
@@ -275,20 +299,20 @@ pub fn resources(
             })
             .collect(),
     );
-    pod.node_selector = Some(step.definition.node_selector.clone());
+    pod.node_selector = Some(task.definition.node_selector.clone());
     pod.tolerations = Some(
-        step.definition
+        task.definition
             .tolerations
             .iter()
             .map(|v| serde_json::from_value(v.0.clone()).map_err(|e| e.to_string()))
             .collect::<Result<Vec<_>, _>>()?,
     );
     let main = &mut pod.containers[0];
-    if let Some(v) = &step.definition.security_context {
+    if let Some(v) = &task.definition.security_context {
         main.security_context =
             Some(serde_json::from_value(v.0.clone()).map_err(|e| e.to_string())?);
     }
-    if let Some(v) = &step.definition.resources {
+    if let Some(v) = &task.definition.resources {
         main.resources = Some(serde_json::from_value(v.0.clone()).map_err(|e| e.to_string())?);
     }
     Ok((config, job))
@@ -325,17 +349,17 @@ fn label_value(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fase_api::{Phase, PlanReference, Step, StepStatus};
+    use fase_api::{ObjectReference, Phase, Run, RunSpec, Task, TaskStatus};
     use serde::Deserialize;
 
     #[test]
-    fn step_pod_receives_declared_settings_and_scoped_labels() {
+    fn task_pod_receives_declared_settings_and_scoped_labels() {
         let yaml = include_str!("../../examples/hello.yaml");
-        let step_value = serde_yml::Deserializer::from_str(yaml)
+        let task_value = serde_yml::Deserializer::from_str(yaml)
             .next()
             .map(|doc| serde_json::Value::deserialize(doc).unwrap())
             .unwrap();
-        let mut template: Step = serde_json::from_value(step_value).unwrap();
+        let mut template: Task = serde_json::from_value(task_value).unwrap();
         template.spec.image_pull_secrets.push(fase_api::LocalRef {
             name: "registry".into(),
         });
@@ -343,30 +367,40 @@ mod tests {
             .spec
             .node_selector
             .insert("kubernetes.io/os".into(), "linux".into());
-        let step = StepStatus {
+        let task = TaskStatus {
             name: "make".into(),
             phase: Phase::Pending,
             attempt: 0,
-            step_ref: PlanReference {
+            task_ref: ObjectReference {
+                api_version: "skyw.top/v1beta1".into(),
+                kind: "Task".into(),
                 name: "make-source".into(),
-                uid: "step-uid".into(),
-                digest: "sha256:example".into(),
+                uid: "task-uid".into(),
+                generation: 1,
             },
             definition: template.spec,
             variables: BTreeMap::from([("FASE_VAR_VERSION".into(), "1.0".into())]),
+            build_key: None,
             job_ref: None,
             outputs: BTreeMap::new(),
+            output_digests: BTreeMap::new(),
+            claims: BTreeMap::new(),
             message: None,
         };
-        let mut request = Request::new(
+        let mut run = Run::new(
             "hello",
-            fase_api::RequestSpec {
-                artifact_selector: fase_api::LabelSelector::default(),
-                variables: BTreeMap::new(),
+            RunSpec {
+                request_ref: ObjectReference {
+                    api_version: "skyw.top/v1beta1".into(),
+                    kind: "Request".into(),
+                    name: "hello".into(),
+                    uid: "request-uid".into(),
+                    generation: 1,
+                },
             },
         );
-        request.metadata.namespace = Some("builds".into());
-        request.metadata.uid = Some("request-uid".into());
+        run.metadata.namespace = Some("builds".into());
+        run.metadata.uid = Some("run-uid".into());
         let settings = JobSettings {
             helper_image: "helper:dev".into(),
             output_service_account: "fase-output".into(),
@@ -377,20 +411,21 @@ mod tests {
             allow_insecure_s3: false,
             s3_anonymous: false,
             max_artifact_bytes: 512 * 1024 * 1024,
-            step_timeout_seconds: 3600,
+            task_timeout_seconds: 3600,
             read_secret: "read".into(),
             write_secret: "write".into(),
         };
         let manifest = JobManifest {
             inputs: vec![],
             outputs: vec![],
+            execution_build_key: "sha256:test".into(),
             namespace: "builds".into(),
-            request_name: "hello".into(),
-            request_uid: "request-uid".into(),
+            run_name: "hello".into(),
+            run_uid: "run-uid".into(),
         };
         let (_, job) = resources(
-            &request,
-            &step,
+            &run,
+            &task,
             &manifest,
             "hello-make",
             &settings,

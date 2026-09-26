@@ -1,6 +1,9 @@
 use crate::storage::{Store, artifact_id, checked_output_path, collect, materialize};
 use fase_api::sha256_hex;
-use fase_api::{Artifact, ArtifactFormat, ArtifactReference, ArtifactSpec, Labels};
+use fase_api::{
+    Artifact, ArtifactClaim, ArtifactClaimSpec, ArtifactKind, ArtifactReference, ArtifactSpec,
+    Labels, ProducerReference, StorageReference,
+};
 use kube::{Api, Client, api::PostParams};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::PathBuf, time::Duration};
@@ -9,7 +12,7 @@ use std::{collections::BTreeMap, path::PathBuf, time::Duration};
 #[serde(rename_all = "camelCase")]
 pub struct InputItem {
     pub path: String,
-    pub format: ArtifactFormat,
+    pub kind: ArtifactKind,
     pub artifact_name: String,
     pub artifact_spec: ArtifactSpec,
 }
@@ -19,19 +22,20 @@ pub struct InputItem {
 pub struct OutputItem {
     pub name: String,
     pub path: String,
-    pub format: ArtifactFormat,
-    pub artifact_name: String,
-    pub artifact_type: String,
+    pub kind: ArtifactKind,
     pub labels: Labels,
+    pub build_key: String,
+    pub producer: ProducerReference,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct JobManifest {
     pub inputs: Vec<InputItem>,
     pub outputs: Vec<OutputItem>,
+    pub execution_build_key: String,
     pub namespace: String,
-    pub request_name: String,
-    pub request_uid: String,
+    pub run_name: String,
+    pub run_uid: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -39,9 +43,10 @@ pub struct JobManifest {
 pub struct OutputReceipt {
     pub name: String,
     pub artifact_ref: ArtifactReference,
+    pub claim_ref: ArtifactReference,
     pub sha256: String,
     pub size: i64,
-    pub format: ArtifactFormat,
+    pub kind: ArtifactKind,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -59,7 +64,7 @@ pub async fn run_input() -> Result<(), String> {
             .get(
                 &input.artifact_name,
                 &input.artifact_spec,
-                input.format,
+                input.kind,
                 max_bytes,
             )
             .await?;
@@ -69,7 +74,7 @@ pub async fn run_input() -> Result<(), String> {
                 input.artifact_name
             ));
         }
-        materialize(&input_root, &input.path, input.format, &bytes)?;
+        materialize(&input_root, &input.path, input.kind, &bytes)?;
     }
     Ok(())
 }
@@ -81,19 +86,20 @@ pub async fn run_output() -> Result<(), String> {
         .map_err(|error| error.to_string())?;
     let pod_name =
         std::env::var("FASE_POD_NAME").map_err(|_| "FASE_POD_NAME is required".to_owned())?;
-    let exit_code = wait_for_step(&client, &manifest.namespace, &pod_name).await?;
+    let exit_code = wait_for_task(&client, &manifest.namespace, &pod_name).await?;
     if exit_code != 0 {
-        return Err(format!("step container exited with {exit_code}"));
+        return Err(format!("task container exited with {exit_code}"));
     }
 
     let output_root = root("FASE_OUTPUT_ROOT", "/out");
     let store = Store::from_env()?;
     let artifacts: Api<Artifact> = Api::namespaced(client.clone(), &manifest.namespace);
+    let claims: Api<ArtifactClaim> = Api::namespaced(client.clone(), &manifest.namespace);
     let max_bytes = max_artifact_bytes()?;
     let mut prepared = Vec::new();
     for output in &manifest.outputs {
         let path = checked_output_path(&output_root, &output.path)?;
-        let bytes = collect(&path, output.format)?;
+        let bytes = collect(&path, output.kind)?;
         if bytes.len() as u64 > max_bytes {
             return Err(format!(
                 "output {} exceeds FASE_MAX_ARTIFACT_BYTES",
@@ -101,10 +107,14 @@ pub async fn run_output() -> Result<(), String> {
             ));
         }
         let sha256 = sha256_hex(&bytes);
-        let name = artifact_id(&sha256, output.format);
+        let name = artifact_id(&sha256, output.kind);
         let spec = ArtifactSpec {
-            name: output.artifact_name.clone(),
-            artifact_type: output.artifact_type.clone(),
+            content_digest: format!("sha256:{sha256}"),
+            size_bytes: bytes.len() as i64,
+            kind: output.kind,
+            storage_ref: StorageReference {
+                key: format!("objects/{name}"),
+            },
         };
         prepared.push((output.clone(), name, spec, bytes, sha256));
     }
@@ -117,7 +127,6 @@ pub async fn run_output() -> Result<(), String> {
     for (output, name, spec, bytes, sha256) in prepared {
         let mut artifact = Artifact::new(&name, spec);
         artifact.metadata.namespace = Some(manifest.namespace.clone());
-        artifact.metadata.labels = Some(output.labels.clone());
         match artifacts.create(&PostParams::default(), &artifact).await {
             Ok(_) => {}
             Err(kube::Error::Api(error)) if error.code == 409 => {
@@ -128,10 +137,38 @@ pub async fn run_output() -> Result<(), String> {
                     .get(&name)
                     .await
                     .map_err(|error| error.to_string())?;
-                if existing.metadata.labels.as_ref() != Some(&output.labels)
-                    || existing.spec.artifact_type != output.artifact_type
+                if existing.spec.content_digest != artifact.spec.content_digest
+                    || existing.spec.size_bytes != artifact.spec.size_bytes
+                    || existing.spec.kind != artifact.spec.kind
+                    || existing.spec.storage_ref.key != artifact.spec.storage_ref.key
                 {
-                    return Err(format!("Artifact {name} has conflicting labels or type"));
+                    return Err(format!("Artifact {name} has conflicting content metadata"));
+                }
+            }
+            Err(error) => return Err(error.to_string()),
+        }
+        let identity =
+            serde_json::to_vec(&(name.as_str(), &output.labels)).map_err(|e| e.to_string())?;
+        let claim_name = format!("claim-{}", fase_api::sha256_hex(&identity));
+        let mut claim = ArtifactClaim::new(
+            &claim_name,
+            ArtifactClaimSpec {
+                artifact_ref: ArtifactReference { name: name.clone() },
+                build_key: output.build_key,
+                producer: output.producer,
+            },
+        );
+        claim.metadata.namespace = Some(manifest.namespace.clone());
+        claim.metadata.labels = Some(output.labels);
+        match claims.create(&PostParams::default(), &claim).await {
+            Ok(_) => {}
+            Err(kube::Error::Api(error)) if error.code == 409 => {
+                let existing = claims.get(&claim_name).await.map_err(|e| e.to_string())?;
+                if existing.spec.artifact_ref.name != name
+                    || existing.metadata.labels.unwrap_or_default()
+                        != claim.metadata.labels.unwrap_or_default()
+                {
+                    return Err(format!("ArtifactClaim {claim_name} conflicts"));
                 }
             }
             Err(error) => return Err(error.to_string()),
@@ -139,9 +176,10 @@ pub async fn run_output() -> Result<(), String> {
         receipts.push(OutputReceipt {
             name: output.name,
             artifact_ref: ArtifactReference { name },
+            claim_ref: ArtifactReference { name: claim_name },
             size: bytes.len() as i64,
             sha256,
-            format: output.format,
+            kind: output.kind,
         });
     }
 
@@ -159,10 +197,10 @@ pub async fn run_output() -> Result<(), String> {
     result_config.immutable = Some(true);
     result_config.metadata.owner_references = Some(vec![
         k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference {
-            api_version: "skyw.top/v1alpha1".into(),
-            kind: "Request".into(),
-            name: manifest.request_name.clone(),
-            uid: manifest.request_uid.clone(),
+            api_version: "skyw.top/v1beta1".into(),
+            kind: "Run".into(),
+            name: manifest.run_name.clone(),
+            uid: manifest.run_uid.clone(),
             controller: Some(false),
             block_owner_deletion: Some(false),
         },
@@ -191,9 +229,9 @@ pub async fn run_output() -> Result<(), String> {
     Ok(())
 }
 
-async fn wait_for_step(client: &Client, namespace: &str, pod_name: &str) -> Result<i32, String> {
+async fn wait_for_task(client: &Client, namespace: &str, pod_name: &str) -> Result<i32, String> {
     let pods: Api<k8s_openapi::api::core::v1::Pod> = Api::namespaced(client.clone(), namespace);
-    let timeout = step_timeout_seconds()?;
+    let timeout = task_timeout_seconds()?;
     for _ in 0..timeout.saturating_mul(2) {
         let pod = pods
             .get(pod_name)
@@ -203,7 +241,7 @@ async fn wait_for_step(client: &Client, namespace: &str, pod_name: &str) -> Resu
             .status
             .as_ref()
             .and_then(|status| status.container_statuses.as_ref())
-            .and_then(|statuses| statuses.iter().find(|status| status.name == "step"))
+            .and_then(|statuses| statuses.iter().find(|status| status.name == "task"))
             .and_then(|status| status.state.as_ref())
             .and_then(|state| state.terminated.as_ref())
         {
@@ -211,7 +249,7 @@ async fn wait_for_step(client: &Client, namespace: &str, pod_name: &str) -> Resu
         }
         tokio::time::sleep(Duration::from_millis(500)).await;
     }
-    Err("timed out waiting for the step container".to_owned())
+    Err("timed out waiting for the task container".to_owned())
 }
 
 fn read_manifest() -> Result<JobManifest, String> {
@@ -220,7 +258,7 @@ fn read_manifest() -> Result<JobManifest, String> {
     serde_json::from_slice(&bytes).map_err(|error| error.to_string())
 }
 
-fn step_timeout_seconds() -> Result<u64, String> {
+fn task_timeout_seconds() -> Result<u64, String> {
     let value = std::env::var("FASE_STEP_TIMEOUT_SECONDS")
         .unwrap_or_else(|_| "3600".into())
         .parse::<u64>()

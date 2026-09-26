@@ -120,6 +120,18 @@ pub async fn reconcile(client: &Client, generator: &RequestGenerator) -> Result<
             }
         }
         artifact_selector.validate()?;
+        let mut recipe_selector = generator.spec.template.request.recipe_selector.clone();
+        if let Some(selector) = &mut recipe_selector {
+            for value in selector.match_labels.values_mut() {
+                *value = render(value)?;
+            }
+            for expression in &mut selector.match_expressions {
+                for value in &mut expression.values {
+                    *value = render(value)?;
+                }
+            }
+            selector.validate()?;
+        }
         let readable_suffix = values
             .values()
             .map(String::as_str)
@@ -139,14 +151,16 @@ pub async fn reconcile(client: &Client, generator: &RequestGenerator) -> Result<
         let name = dns_label(&raw_name);
         let spec = RequestSpec {
             artifact_selector,
+            recipe_selector,
             variables: variables.clone(),
+            rerun: generator.spec.template.request.rerun,
         };
         let mut request = Request::new(&name, spec);
         request.metadata.namespace = Some(namespace.clone());
         if let Some(uid) = &generator.metadata.uid {
             request.metadata.owner_references = Some(vec![
                 k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference {
-                    api_version: "skyw.top/v1alpha1".into(),
+                    api_version: "skyw.top/v1beta1".into(),
                     kind: "RequestGenerator".into(),
                     name: generator.name_any(),
                     uid: uid.clone(),
@@ -164,6 +178,8 @@ pub async fn reconcile(client: &Client, generator: &RequestGenerator) -> Result<
                     .map_err(|error| error.to_string())?;
                 if existing.spec.variables != variables
                     || existing.spec.artifact_selector != request.spec.artifact_selector
+                    || existing.spec.recipe_selector != request.spec.recipe_selector
+                    || existing.spec.rerun != request.spec.rerun
                     || generator.metadata.uid.as_ref().is_some_and(|uid| {
                         existing
                             .metadata
