@@ -15,7 +15,8 @@ after the old data and controller have been migrated.
 
 The `fase-ghcr-pull`, `fase-s3-read`, and `fase-s3-write` Secrets are copied
 from `sep` into `fase-beta` out of band; secret values are not committed here.
-S3 objects use the `fase-beta/` prefix within the existing `fase` bucket.
+The shared S3 credentials reject a separate prefix, so beta artifacts use the
+content-addressed `objects/` path in the existing `fase` bucket.
 
 `crds/`, `runtime/`, and `smoke/` are separate Kustomize roots to give Flux a
 dependency order. `smoke/` contains the example two task build Request and its

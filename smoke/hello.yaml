@@ -95,7 +95,7 @@ spec:
 ---
 apiVersion: skyw.top/v1beta1
 kind: Request
-metadata: {name: hello-example}
+metadata: {name: hello-smoke-v2}
 spec:
   artifactSelector:
     matchLabels: {name: hello-package, version: "1.0", arch: amd64}

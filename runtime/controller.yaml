@@ -222,8 +222,8 @@ spec:
           value: '3600'
         - name: FASE_S3_REGION
           value: us-east-1
-        - name: FASE_S3_PREFIX
-          value: fase-beta
+  - name: FASE_S3_PREFIX
+    value: ''
         - name: FASE_S3_ANONYMOUS
           value: 'false'
         - name: FASE_S3_READ_SECRET
