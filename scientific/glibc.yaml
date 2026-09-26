@@ -109,7 +109,7 @@ spec:
     mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src /workspace/wheels "$FASE_OUTPUT_ROOT/wheels"
     "$python" -m pip install --disable-pip-version-check --no-cache-dir \
       'meson==1.12.1' 'meson-python==0.21.1' 'pyproject-metadata==0.12.1' \
-      'packaging==26.3' 'Cython==3.3.0' 'ninja==1.13.2'
+      'packaging==26.3' 'Cython==3.3.0' 'ninja==1.13.2' 'auditwheel==6.5.0'
     tar -xf "$FASE_INPUT_ROOT/source.tar.gz" -C /workspace/src
     cd /workspace/src/numpy-2.5.3
     "$python" -m pip wheel --disable-pip-version-check --no-build-isolation --no-deps \
@@ -202,7 +202,8 @@ spec:
     "$python" -m pip install --disable-pip-version-check --no-cache-dir \
       'meson==1.12.1' 'meson-python==0.21.1' 'pyproject-metadata==0.12.1' \
       'packaging==26.3' 'Cython==3.2.4' 'ninja==1.13.2' 'pybind11==3.0.4' \
-      'pythran==0.19.0' 'beniget==0.5.0' 'gast==0.7.0' 'ply==3.11' 'setuptools==84.0.0'
+      'pythran==0.19.0' 'beniget==0.5.0' 'gast==0.7.0' 'ply==3.11' 'setuptools==84.0.0' \
+      'auditwheel==6.5.0'
     "$python" -m pip install --no-index --no-deps "$FASE_INPUT_ROOT"/numpy-wheels/numpy-*.whl
     "$python" -c 'import numpy; assert numpy.__version__ == "2.5.3"'
     tar -xf "$FASE_INPUT_ROOT/source.tar.gz" -C /workspace/src

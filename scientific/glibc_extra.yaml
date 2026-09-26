@@ -54,7 +54,7 @@ spec:
     mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src /workspace/wheels "$FASE_OUTPUT_ROOT/wheels"
     "$python" -m pip install --disable-pip-version-check --no-cache-dir \
       'meson-python==0.21.1' 'meson==1.12.1' 'wheel==0.45.1' \
-      'Cython==3.2.4' 'versioneer[toml]==0.29' 'ninja==1.13.2'
+      'Cython==3.2.4' 'versioneer[toml]==0.29' 'ninja==1.13.2' 'auditwheel==6.5.0'
     "$python" -m pip install --no-index --no-deps "$FASE_INPUT_ROOT"/numpy-wheels/numpy-*.whl
     tar -xf "$FASE_INPUT_ROOT/pandas.tar.gz" -C /workspace/src
     cd /workspace/src/pandas-3.0.6
@@ -139,7 +139,7 @@ spec:
     export PATH=/opt/python/cp313-cp313/bin:$PATH
     mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src /workspace/wheels "$FASE_OUTPUT_ROOT/wheels"
     "$python" -m pip install --disable-pip-version-check --no-cache-dir \
-      'scikit-build-core==1.1.0' 'ninja==1.13.2' 'packaging==26.3'
+      'scikit-build-core==1.1.0' 'ninja==1.13.2' 'packaging==26.3' 'auditwheel==6.5.0'
     "$python" -m pip install --no-index --no-deps "$FASE_INPUT_ROOT"/numpy-wheels/numpy-*.whl
     tar -xf "$FASE_INPUT_ROOT/ml-dtypes.tar.gz" -C /workspace/src
     cd /workspace/src/ml_dtypes-0.6.0

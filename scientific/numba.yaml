@@ -182,7 +182,8 @@ spec:
     export LLVMLITE_PACKAGE_FORMAT=wheel LLVMLITE_USE_RTTI=ON
     python=/opt/python/cp313-cp313/bin/python
     mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src /workspace/wheels "$FASE_OUTPUT_ROOT/wheels"
-    "$python" -m pip install --disable-pip-version-check --no-cache-dir 'setuptools==84.0.0' 'wheel==0.45.1'
+    "$python" -m pip install --disable-pip-version-check --no-cache-dir \
+      'setuptools==84.0.0' 'wheel==0.45.1' 'auditwheel==6.5.0'
     "$LLVM_CONFIG" --version | grep -q '^22\.'
     tar -xf "$FASE_INPUT_ROOT/llvmlite.tar.gz" -C /workspace/src
     cd /workspace/src/llvmlite-0.49.0
@@ -266,7 +267,8 @@ spec:
     export HOME=/workspace/home TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/cache
     python=/opt/python/cp313-cp313/bin/python
     mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" /workspace/src /workspace/wheels "$FASE_OUTPUT_ROOT/wheels"
-    "$python" -m pip install --disable-pip-version-check --no-cache-dir 'setuptools==84.0.0' 'wheel==0.45.1'
+    "$python" -m pip install --disable-pip-version-check --no-cache-dir \
+      'setuptools==84.0.0' 'wheel==0.45.1' 'auditwheel==6.5.0'
     "$python" -m pip install --no-index --no-deps "$FASE_INPUT_ROOT"/numpy-wheels/numpy-*.whl
     "$python" -m pip install --no-index --no-deps "$FASE_INPUT_ROOT"/llvmlite-wheels/llvmlite-*.whl
     "$python" -c 'import llvmlite, numpy; assert llvmlite.__version__ == "0.49.0"; assert numpy.__version__ == "2.5.3"'
