@@ -152,6 +152,20 @@ spec:
     # Add tests."""
     assert source.count(original) == 1
     cmake_file.write_text(source.replace(original, replacement))
+
+    output_cmake = Path("rocm-systems/projects/rocprofiler-sdk/source/lib/output/CMakeLists.txt")
+    source = output_cmake.read_text()
+    original = "target_compile_definitions(rocprofiler-sdk-output-library\n"
+    replacement = (
+        "# The output sources include sqlite3.h directly. Use TheRock's pinned header.\n"
+        "find_package(SQLite3 REQUIRED CONFIG)\n"
+        "target_include_directories(rocprofiler-sdk-output-library PRIVATE\n"
+        '    "$<TARGET_PROPERTY:SQLite::SQLite3,INTERFACE_INCLUDE_DIRECTORIES>")\n'
+        "\n"
+        "target_compile_definitions(rocprofiler-sdk-output-library\n"
+    )
+    assert source.count(original) == 1
+    output_cmake.write_text(source.replace(original, replacement))
     PY
     cmake -S . -B /workspace/build -GNinja -DTHEROCK_AMDGPU_TARGETS=gfx942 \
       -DTHEROCK_DIST_AMDGPU_TARGETS=gfx942 -DTHEROCK_TEST_AMDGPU_TARGETS=gfx942 \
