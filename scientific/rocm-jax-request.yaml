@@ -1,0 +1,10 @@
+apiVersion: skyw.top/v1beta1
+kind: Request
+metadata:
+  name: champion-rocm-jax-gfx942
+spec:
+  artifactSelector:
+    matchLabels:
+      name: rocm-jax-gfx942-wheels
+      version: "0.11.1"
+      gpu: gfx942
