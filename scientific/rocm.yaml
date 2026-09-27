@@ -153,19 +153,18 @@ spec:
     assert source.count(original) == 1
     cmake_file.write_text(source.replace(original, replacement))
 
-    output_cmake = Path("rocm-systems/projects/rocprofiler-sdk/source/lib/output/CMakeLists.txt")
-    source = output_cmake.read_text()
-    original = "target_compile_definitions(rocprofiler-sdk-output-library\n"
+    profiler_cmake = Path("rocm-systems/projects/rocprofiler-sdk/source/lib/CMakeLists.txt")
+    source = profiler_cmake.read_text()
+    original = "rocprofiler_activate_clang_tidy()\n"
     replacement = (
-        "# The output sources include sqlite3.h directly. Use TheRock's pinned header.\n"
+        "rocprofiler_activate_clang_tidy()\n\n"
+        "# Output and Python bindings include sqlite3.h; use TheRock's pinned header.\n"
         "find_package(SQLite3 REQUIRED CONFIG)\n"
-        "target_include_directories(rocprofiler-sdk-output-library PRIVATE\n"
-        '    "$<TARGET_PROPERTY:SQLite::SQLite3,INTERFACE_INCLUDE_DIRECTORIES>")\n'
-        "\n"
-        "target_compile_definitions(rocprofiler-sdk-output-library\n"
+        "get_target_property(_rocm_sqlite_include SQLite::SQLite3 INTERFACE_INCLUDE_DIRECTORIES)\n"
+        'include_directories("${_rocm_sqlite_include}")\n'
     )
     assert source.count(original) == 1
-    output_cmake.write_text(source.replace(original, replacement))
+    profiler_cmake.write_text(source.replace(original, replacement))
     PY
     cmake -S . -B /workspace/build -GNinja -DTHEROCK_AMDGPU_TARGETS=gfx942 \
       -DTHEROCK_DIST_AMDGPU_TARGETS=gfx942 -DTHEROCK_TEST_AMDGPU_TARGETS=gfx942 \
