@@ -156,7 +156,7 @@ spec:
     cmake -S . -B /workspace/build -GNinja -DTHEROCK_AMDGPU_TARGETS=gfx942 \
       -DTHEROCK_DIST_AMDGPU_TARGETS=gfx942 -DTHEROCK_TEST_AMDGPU_TARGETS=gfx942 \
       -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DLLVM_PARALLEL_LINK_JOBS=2 \
-      -DFLANG_PARALLEL_COMPILE_JOBS=6
+      -DFLANG_PARALLEL_COMPILE_JOBS=6 -DTHEROCK_ENABLE_MEDIA_LIBS=OFF
     cmake --build /workspace/build --target therock-dist -j12
     test -d /workspace/build/dist/rocm/lib
     tar -C /workspace/build/dist/rocm -cf - . | zstd -T16 -9 \
@@ -164,6 +164,7 @@ spec:
     zstd -t "$FASE_OUTPUT_ROOT/rocm-gfx942.tar.zst"
     {
       printf 'TheRock 7.14.1 source build for gfx942 (MI300), static artifact verification only\n'
+      printf 'Media libraries excluded from this scientific GPU SDK\n'
       printf 'files: '; find /workspace/build/dist/rocm -type f | wc -l
       printf 'archive: '; stat -c %s "$FASE_OUTPUT_ROOT/rocm-gfx942.tar.zst"
       sha256sum "$FASE_OUTPUT_ROOT/rocm-gfx942.tar.zst"

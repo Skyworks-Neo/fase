@@ -28,7 +28,8 @@ The ROCm line pins TheRock
 Requests start these two independent dependency lines. The ROCm/JAX plugin
 Request follows after JAX CPU and the SDK have both completed. ROCm validation
 checks produced archives and wheels; this cluster has no AMD GPU for runtime
-testing.
+testing. The GPU SDK build excludes media libraries, which are outside this
+scientific compute dependency chain.
 
 Build tools use the Tsinghua PyPI mirror, and the Ubuntu ROCm builder uses its
 Ubuntu mirror. Pinned target source archives still carry SHA256 digests.
